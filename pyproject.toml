@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-pareto-controller"
+version = "0.1.0"
+description = "Scaffold for LLM-closed-loop NSGA-II research experiments"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy",
+  "pydantic",
+  "pyyaml",
+  "pytest",
+  "matplotlib",
+  "httpx",
+  "tenacity",
+  "ruff",
+]
