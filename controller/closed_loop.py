@@ -1,4 +1,4 @@
-"""Rule-based closed-loop controller for NSGA-II MVP (M4/M5)."""
+"""Closed-loop controller orchestration with pluggable control policies."""
 
 from __future__ import annotations
 
@@ -58,8 +58,19 @@ class RewardConfig:
 
 
 @dataclass(slots=True)
+class OperatorParams:
+    """Current optimizer operator probabilities."""
+
+    mutation_prob: float
+    crossover_prob: float
+
+    def to_dict(self) -> dict[str, float]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class ControlAction:
-    """Action chosen by rule policy for optimizer operator probabilities."""
+    """Action chosen by controller for operator probabilities."""
 
     generation: int
     mutation_prob: float
@@ -71,16 +82,48 @@ class ControlAction:
         return asdict(self)
 
 
+class ControlPolicy(Protocol):
+    """Shared interface for rule and LLM-based controllers."""
+
+    control_interval: int
+
+    def decide(
+        self,
+        *,
+        state: ParetoState,
+        recent_experiences: list[ExperienceRecord],
+        current_params: OperatorParams,
+    ) -> ControlAction:
+        """Return the next control action."""
+
+
 class RuleBasedController:
-    """Simple heuristic policy; extension point for M5/M6 LLM controllers."""
+    """Simple heuristic policy; extension point for M6 LLM controllers."""
 
     def __init__(self, config: RuleControllerConfig) -> None:
         self.config = config
+        self.control_interval = config.control_interval
 
-    def decide(self, *, state: ParetoState, current_mutation: float, current_crossover: float) -> ControlAction:
+    def decide(
+        self,
+        *,
+        state: ParetoState,
+        recent_experiences: list[ExperienceRecord] | None = None,
+        current_params: OperatorParams | None = None,
+        current_mutation: float | None = None,
+        current_crossover: float | None = None,
+    ) -> ControlAction:
         """Decide new operator parameters from sensed Pareto state."""
-        mutation = current_mutation
-        crossover = current_crossover
+        del recent_experiences
+        if current_params is not None:
+            mutation = current_params.mutation_prob
+            crossover = current_params.crossover_prob
+        elif current_mutation is not None and current_crossover is not None:
+            mutation = current_mutation
+            crossover = current_crossover
+        else:
+            msg = "Either current_params or both current_mutation/current_crossover must be provided"
+            raise ValueError(msg)
         reasons: list[str] = []
 
         if state.stagnation_len > 0:
@@ -115,6 +158,38 @@ class RuleBasedController:
         )
 
 
+class LLMChainController:
+    """Composable controller using analyst -> strategist -> actuator chain."""
+
+    def __init__(
+        self,
+        *,
+        control_interval: int,
+        experience_lookback: int,
+        analyst: Any,
+        strategist: Any,
+        actuator: Any,
+    ) -> None:
+        if control_interval <= 0:
+            raise ValueError("control_interval must be > 0")
+        self.control_interval = control_interval
+        self.experience_lookback = max(1, experience_lookback)
+        self.analyst = analyst
+        self.strategist = strategist
+        self.actuator = actuator
+
+    def decide(
+        self,
+        *,
+        state: ParetoState,
+        recent_experiences: list[ExperienceRecord],
+        current_params: OperatorParams,
+    ) -> ControlAction:
+        diagnosis = self.analyst.analyze(state=state, recent_experiences=recent_experiences)
+        strategy = self.strategist.plan(diagnosis)
+        return self.actuator.act(generation=state.generation, strategy=strategy, current_params=current_params)
+
+
 @dataclass(slots=True)
 class _PendingExperience:
     """Internal transition holder until next state becomes available."""
@@ -124,14 +199,14 @@ class _PendingExperience:
 
 
 class ClosedLoopRunner:
-    """Coordinate optimizer, sensing, rule controller, and lightweight logging."""
+    """Coordinate optimizer, sensing, control policy, and lightweight logging."""
 
     def __init__(
         self,
         *,
         solver: NSGA2Solver,
         sensor: ParetoStateSensor,
-        controller: RuleBasedController,
+        controller: ControlPolicy,
         logger: EventLogger | None = None,
         experience_pool: ExperiencePool | None = None,
         experience_logger: ExperienceLogger | None = None,
@@ -179,11 +254,15 @@ class ClosedLoopRunner:
                 self._finalize_experience(pending_experience, state)
                 pending_experience = None
 
-            if generation % self.controller.config.control_interval == 0:
+            if generation % self.controller.control_interval == 0:
+                recent_experiences = self._recent_experiences()
                 action = self.controller.decide(
                     state=state,
-                    current_mutation=self.solver.config.mutation_prob,
-                    current_crossover=self.solver.config.crossover_prob,
+                    recent_experiences=recent_experiences,
+                    current_params=OperatorParams(
+                        mutation_prob=self.solver.config.mutation_prob,
+                        crossover_prob=self.solver.config.crossover_prob,
+                    ),
                 )
                 self.solver.set_operator_probs(
                     mutation_prob=action.mutation_prob,
@@ -195,6 +274,12 @@ class ClosedLoopRunner:
             previous_state = state
 
         return states
+
+    def _recent_experiences(self) -> list[ExperienceRecord]:
+        if self.experience_pool is None:
+            return []
+        lookback = getattr(self.controller, "experience_lookback", 5)
+        return self.experience_pool.recent(int(lookback))
 
     def _log_state(self, state: ParetoState, mutation_prob: float, crossover_prob: float) -> None:
         if self.logger is None:

@@ -92,3 +92,21 @@ def test_closed_loop_records_experience_chain() -> None:
 def test_rule_controller_config_validates_control_interval() -> None:
     with pytest.raises(ValueError, match="control_interval"):
         RuleControllerConfig(control_interval=0)
+
+
+def test_rule_controller_decide_backwards_compatible_signature() -> None:
+    solver = _build_solver()
+    controller = RuleBasedController(RuleControllerConfig(control_interval=2))
+    population = solver.initialize_population()
+    sensor = ParetoStateSensor()
+    state = sensor.sense(generation=0, population=population, previous_state=None, reference_point=None)
+
+    action = controller.decide(
+        state=state,
+        current_mutation=solver.config.mutation_prob,
+        current_crossover=solver.config.crossover_prob,
+    )
+
+    assert action.generation == 0
+    assert 0.0 <= action.mutation_prob <= 1.0
+    assert 0.0 <= action.crossover_prob <= 1.0

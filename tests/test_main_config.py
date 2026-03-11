@@ -44,3 +44,5 @@ log_path: runs/m4/events.jsonl
     assert cfg.memory.memory_window == 100
     assert cfg.memory.reward_alpha == 1.0
     assert cfg.memory.reward_beta == 0.1
+    assert cfg.controller_mode.mode == "rule"
+    assert cfg.controller_mode.experience_lookback == 5
