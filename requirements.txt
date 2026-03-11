@@ -1,0 +1,8 @@
+numpy
+pydantic
+pyyaml
+pytest
+matplotlib
+httpx
+tenacity
+ruff
