@@ -1,10 +1,11 @@
-"""Rule-based closed-loop controller for NSGA-II MVP (M4)."""
+"""Rule-based closed-loop controller for NSGA-II MVP (M4/M5)."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
+from memory.experience_pool import ExperiencePool, ExperienceRecord
 from optimizers.nsga2.solver import NSGA2Solver
 from sensing.pareto_state import ParetoState, ParetoStateSensor
 
@@ -14,6 +15,13 @@ class EventLogger(Protocol):
 
     def log(self, event: dict[str, Any]) -> None:
         """Persist a single structured event."""
+
+
+class ExperienceLogger(Protocol):
+    """Protocol for optional experience persistence backend."""
+
+    def log(self, record: ExperienceRecord) -> None:
+        """Persist a single experience record."""
 
 
 @dataclass(slots=True)
@@ -31,7 +39,6 @@ class RuleControllerConfig:
     diversity_low: float = 0.08
     improvement_threshold: float = 1e-3
 
-
     def __post_init__(self) -> None:
         """Validate basic controller-rule bounds for safe runtime use."""
         if self.control_interval <= 0:
@@ -40,6 +47,14 @@ class RuleControllerConfig:
             raise ValueError("mutation probability bounds must satisfy 0 <= min <= max <= 1")
         if not 0.0 <= self.min_crossover_prob <= self.max_crossover_prob <= 1.0:
             raise ValueError("crossover probability bounds must satisfy 0 <= min <= max <= 1")
+
+
+@dataclass(slots=True)
+class RewardConfig:
+    """Reward weighting used by M5 experience collection."""
+
+    alpha: float = 1.0
+    beta: float = 0.1
 
 
 @dataclass(slots=True)
@@ -100,6 +115,14 @@ class RuleBasedController:
         )
 
 
+@dataclass(slots=True)
+class _PendingExperience:
+    """Internal transition holder until next state becomes available."""
+
+    state: ParetoState
+    action: ControlAction
+
+
 class ClosedLoopRunner:
     """Coordinate optimizer, sensing, rule controller, and lightweight logging."""
 
@@ -110,11 +133,17 @@ class ClosedLoopRunner:
         sensor: ParetoStateSensor,
         controller: RuleBasedController,
         logger: EventLogger | None = None,
+        experience_pool: ExperiencePool | None = None,
+        experience_logger: ExperienceLogger | None = None,
+        reward_config: RewardConfig | None = None,
     ) -> None:
         self.solver = solver
         self.sensor = sensor
         self.controller = controller
         self.logger = logger
+        self.experience_pool = experience_pool
+        self.experience_logger = experience_logger
+        self.reward_config = reward_config or RewardConfig()
 
     def run(self, *, generations: int, reference_point: tuple[float, ...] | None = None) -> list[ParetoState]:
         """Execute closed-loop optimization and return sensed states."""
@@ -123,6 +152,7 @@ class ClosedLoopRunner:
         population = self.solver.initialize_population()
         previous_state: ParetoState | None = None
         states: list[ParetoState] = []
+        pending_experience: _PendingExperience | None = None
 
         initial_state = self.sensor.sense(
             generation=0,
@@ -145,6 +175,10 @@ class ClosedLoopRunner:
             states.append(state)
             self._log_state(state, self.solver.config.mutation_prob, self.solver.config.crossover_prob)
 
+            if pending_experience is not None:
+                self._finalize_experience(pending_experience, state)
+                pending_experience = None
+
             if generation % self.controller.config.control_interval == 0:
                 action = self.controller.decide(
                     state=state,
@@ -156,6 +190,7 @@ class ClosedLoopRunner:
                     crossover_prob=action.crossover_prob,
                 )
                 self._log_action(action)
+                pending_experience = _PendingExperience(state=state, action=action)
 
             previous_state = state
 
@@ -177,6 +212,29 @@ class ClosedLoopRunner:
         if self.logger is None:
             return
         self.logger.log({"event": "action", **action.to_dict()})
+
+    def _finalize_experience(self, pending: _PendingExperience, next_state: ParetoState) -> None:
+        if self.experience_pool is None and self.experience_logger is None:
+            return
+
+        reward = compute_reward(state=pending.state, next_state=next_state, config=self.reward_config)
+        record = ExperienceRecord(
+            state=pending.state.to_dict(),
+            action=pending.action.to_dict(),
+            reward=reward,
+            next_state=next_state.to_dict(),
+        )
+        if self.experience_pool is not None:
+            self.experience_pool.append(record)
+        if self.experience_logger is not None:
+            self.experience_logger.log(record)
+
+
+def compute_reward(*, state: ParetoState, next_state: ParetoState, config: RewardConfig) -> float:
+    """Compute M5 lightweight reward from adjacent states."""
+    delta_hv = next_state.hv - state.hv
+    delta_feasible_ratio = next_state.feasible_ratio - state.feasible_ratio
+    return delta_hv + config.alpha * delta_feasible_ratio - config.beta * next_state.mean_cv
 
 
 def _clip(value: float, low: float, high: float) -> float:
