@@ -1,4 +1,4 @@
-"""Run the M4 rule-based closed-loop NSGA-II workflow."""
+"""Run the M4/M5 rule-based closed-loop NSGA-II workflow."""
 
 from __future__ import annotations
 
@@ -7,8 +7,9 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field
 
-from controller.closed_loop import ClosedLoopRunner, RuleBasedController, RuleControllerConfig
-from infra.storage import JsonlLogger
+from controller.closed_loop import ClosedLoopRunner, RewardConfig, RuleBasedController, RuleControllerConfig
+from infra.storage import ExperienceJsonlLogger, JsonlLogger
+from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from sensing.pareto_state import ParetoStateSensor
 
@@ -23,6 +24,16 @@ class ProblemConfig(BaseModel):
     capacities: list[float]
 
 
+class MemoryConfig(BaseModel):
+    """M5 memory and reward-related configuration."""
+
+    enabled: bool = True
+    memory_window: int = 100
+    experience_log_path: str | None = Field(default="runs/m5/experiences.jsonl")
+    reward_alpha: float = 1.0
+    reward_beta: float = 0.1
+
+
 class ExperimentConfig(BaseModel):
     """Top-level experiment config parsed from YAML."""
 
@@ -30,6 +41,7 @@ class ExperimentConfig(BaseModel):
     controller: RuleControllerConfig
     problem: ProblemConfig
     log_path: str = Field(default="runs/m4/events.jsonl")
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
 
 def load_config(path: str | Path) -> ExperimentConfig:
@@ -52,7 +64,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
 
 
 def main(config_path: str = "experiments/configs/default.yaml") -> None:
-    """Run M4 closed loop and print final summary."""
+    """Run closed loop and print final summary."""
     config = load_config(config_path)
 
     solver = build_solver(config.problem, config.optimizer)
@@ -60,12 +72,28 @@ def main(config_path: str = "experiments/configs/default.yaml") -> None:
     controller = RuleBasedController(config.controller)
     logger = JsonlLogger(config.log_path)
 
-    runner = ClosedLoopRunner(solver=solver, sensor=sensor, controller=controller, logger=logger)
+    experience_pool = ExperiencePool(config.memory.memory_window) if config.memory.enabled else None
+    experience_logger = (
+        ExperienceJsonlLogger(config.memory.experience_log_path)
+        if config.memory.enabled and config.memory.experience_log_path
+        else None
+    )
+    reward_config = RewardConfig(alpha=config.memory.reward_alpha, beta=config.memory.reward_beta)
+
+    runner = ClosedLoopRunner(
+        solver=solver,
+        sensor=sensor,
+        controller=controller,
+        logger=logger,
+        experience_pool=experience_pool,
+        experience_logger=experience_logger,
+        reward_config=reward_config,
+    )
     states = runner.run(generations=config.optimizer.generations)
 
     final = states[-1]
     print(
-        "M4 run complete | "
+        "Run complete | "
         f"generation={final.generation} hv={final.hv:.4f} "
         f"mutation_prob={solver.config.mutation_prob:.3f} "
         f"crossover_prob={solver.config.crossover_prob:.3f} "

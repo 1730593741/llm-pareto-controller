@@ -31,3 +31,11 @@ controller:
   improvement_threshold: 0.0001
 
 log_path: runs/m4/events.jsonl
+
+
+memory:
+  enabled: true
+  memory_window: 100
+  experience_log_path: runs/m5/experiences.jsonl
+  reward_alpha: 1.0
+  reward_beta: 0.1
