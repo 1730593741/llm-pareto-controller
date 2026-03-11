@@ -1,3 +1,7 @@
+experiment:
+  name: mock_llm_chain
+  seed: 9
+
 problem:
   n_tasks: 6
   n_resources: 3
@@ -34,6 +38,21 @@ controller_mode:
   mode: mock_llm
   experience_lookback: 4
 
+memory:
+  enabled: true
+  memory_window: 100
+  reward_alpha: 1.0
+  reward_beta: 0.1
+
+logging:
+  output_dir: experiments/logs/mock_llm
+  events_file: events.jsonl
+  experiences_file: experiences.jsonl
+  summary_file: summary.json
+  config_snapshot_file: config_snapshot.yaml
+  generation_log_file: generation_metrics.jsonl
+  action_log_file: actions.jsonl
+
 llm:
   provider: openai
   model: gpt-mock
@@ -44,12 +63,3 @@ llm:
   model_env: OPENAI_MODEL
   base_url: https://api.openai.com/v1/chat/completions
   fallback_mode: mock_llm
-
-log_path: runs/m6/mock_llm_events.jsonl
-
-memory:
-  enabled: true
-  memory_window: 100
-  experience_log_path: runs/m6/mock_llm_experiences.jsonl
-  reward_alpha: 1.0
-  reward_beta: 0.1

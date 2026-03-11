@@ -1,6 +1,6 @@
 experiment:
-  name: default_closed_loop
-  seed: 7
+  name: baseline_rule_control
+  seed: 9
 
 problem:
   n_tasks: 6
@@ -20,7 +20,7 @@ optimizer:
   generations: 20
   crossover_prob: 0.9
   mutation_prob: 0.1
-  seed: 7
+  seed: 9
 
 controller:
   control_interval: 4
@@ -45,21 +45,10 @@ memory:
   reward_beta: 0.1
 
 logging:
-  output_dir: experiments/logs/default
+  output_dir: experiments/logs/rule_control
   events_file: events.jsonl
   experiences_file: experiences.jsonl
   summary_file: summary.json
   config_snapshot_file: config_snapshot.yaml
   generation_log_file: generation_metrics.jsonl
   action_log_file: actions.jsonl
-
-llm:
-  provider: openai
-  model: gpt-mock
-  timeout_s: 8.0
-  max_retries: 1
-  api_key_env: OPENAI_API_KEY
-  base_url_env: OPENAI_BASE_URL
-  model_env: OPENAI_MODEL
-  base_url: https://api.openai.com/v1/chat/completions
-  fallback_mode: mock_llm

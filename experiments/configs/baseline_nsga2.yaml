@@ -1,6 +1,6 @@
 experiment:
-  name: default_closed_loop
-  seed: 7
+  name: baseline_nsga2
+  seed: 11
 
 problem:
   n_tasks: 6
@@ -20,46 +20,35 @@ optimizer:
   generations: 20
   crossover_prob: 0.9
   mutation_prob: 0.1
-  seed: 7
+  seed: 11
 
 controller:
-  control_interval: 4
-  min_mutation_prob: 0.03
-  max_mutation_prob: 0.75
-  min_crossover_prob: 0.45
-  max_crossover_prob: 0.98
-  mutation_step: 0.05
-  crossover_step: 0.04
-  feasible_ratio_low: 0.6
-  diversity_low: 0.12
-  improvement_threshold: 0.0001
+  control_interval: 99999
+  min_mutation_prob: 0.1
+  max_mutation_prob: 0.1
+  min_crossover_prob: 0.9
+  max_crossover_prob: 0.9
+  mutation_step: 0.0
+  crossover_step: 0.0
+  feasible_ratio_low: 0.0
+  diversity_low: 0.0
+  improvement_threshold: 1.0
 
 controller_mode:
   mode: rule
-  experience_lookback: 5
+  experience_lookback: 1
 
 memory:
-  enabled: true
-  memory_window: 100
+  enabled: false
+  memory_window: 1
   reward_alpha: 1.0
   reward_beta: 0.1
 
 logging:
-  output_dir: experiments/logs/default
+  output_dir: experiments/logs/baseline_nsga2
   events_file: events.jsonl
   experiences_file: experiences.jsonl
   summary_file: summary.json
   config_snapshot_file: config_snapshot.yaml
   generation_log_file: generation_metrics.jsonl
   action_log_file: actions.jsonl
-
-llm:
-  provider: openai
-  model: gpt-mock
-  timeout_s: 8.0
-  max_retries: 1
-  api_key_env: OPENAI_API_KEY
-  base_url_env: OPENAI_BASE_URL
-  model_env: OPENAI_MODEL
-  base_url: https://api.openai.com/v1/chat/completions
-  fallback_mode: mock_llm
