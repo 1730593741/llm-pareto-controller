@@ -1,0 +1,183 @@
+"""Rule-based closed-loop controller for NSGA-II MVP (M4)."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from typing import Any, Protocol
+
+from optimizers.nsga2.solver import NSGA2Solver
+from sensing.pareto_state import ParetoState, ParetoStateSensor
+
+
+class EventLogger(Protocol):
+    """Protocol for storage backends used by the closed-loop runner."""
+
+    def log(self, event: dict[str, Any]) -> None:
+        """Persist a single structured event."""
+
+
+@dataclass(slots=True)
+class RuleControllerConfig:
+    """Thresholds and step sizes for the M4 rule policy."""
+
+    control_interval: int = 5
+    min_mutation_prob: float = 0.02
+    max_mutation_prob: float = 0.8
+    min_crossover_prob: float = 0.4
+    max_crossover_prob: float = 0.98
+    mutation_step: float = 0.05
+    crossover_step: float = 0.04
+    feasible_ratio_low: float = 0.55
+    diversity_low: float = 0.08
+    improvement_threshold: float = 1e-3
+
+
+    def __post_init__(self) -> None:
+        """Validate basic controller-rule bounds for safe runtime use."""
+        if self.control_interval <= 0:
+            raise ValueError("control_interval must be > 0")
+        if not 0.0 <= self.min_mutation_prob <= self.max_mutation_prob <= 1.0:
+            raise ValueError("mutation probability bounds must satisfy 0 <= min <= max <= 1")
+        if not 0.0 <= self.min_crossover_prob <= self.max_crossover_prob <= 1.0:
+            raise ValueError("crossover probability bounds must satisfy 0 <= min <= max <= 1")
+
+
+@dataclass(slots=True)
+class ControlAction:
+    """Action chosen by rule policy for optimizer operator probabilities."""
+
+    generation: int
+    mutation_prob: float
+    crossover_prob: float
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize action for logs."""
+        return asdict(self)
+
+
+class RuleBasedController:
+    """Simple heuristic policy; extension point for M5/M6 LLM controllers."""
+
+    def __init__(self, config: RuleControllerConfig) -> None:
+        self.config = config
+
+    def decide(self, *, state: ParetoState, current_mutation: float, current_crossover: float) -> ControlAction:
+        """Decide new operator parameters from sensed Pareto state."""
+        mutation = current_mutation
+        crossover = current_crossover
+        reasons: list[str] = []
+
+        if state.stagnation_len > 0:
+            mutation += self.config.mutation_step
+            crossover -= self.config.crossover_step * 0.5
+            reasons.append("stagnation_up_mutation")
+
+        if state.feasible_ratio < self.config.feasible_ratio_low:
+            mutation -= self.config.mutation_step * 0.5
+            crossover += self.config.crossover_step
+            reasons.append("low_feasible_safer_search")
+
+        if state.diversity_score < self.config.diversity_low:
+            mutation += self.config.mutation_step
+            crossover -= self.config.crossover_step
+            reasons.append("low_diversity_more_exploration")
+
+        if state.delta_hv > self.config.improvement_threshold and state.stagnation_len == 0:
+            mutation -= self.config.mutation_step * 0.5
+            crossover += self.config.crossover_step * 0.5
+            reasons.append("stable_improvement_reduce_exploration")
+
+        mutation = _clip(mutation, self.config.min_mutation_prob, self.config.max_mutation_prob)
+        crossover = _clip(crossover, self.config.min_crossover_prob, self.config.max_crossover_prob)
+
+        reason = ";".join(reasons) if reasons else "hold"
+        return ControlAction(
+            generation=state.generation,
+            mutation_prob=mutation,
+            crossover_prob=crossover,
+            reason=reason,
+        )
+
+
+class ClosedLoopRunner:
+    """Coordinate optimizer, sensing, rule controller, and lightweight logging."""
+
+    def __init__(
+        self,
+        *,
+        solver: NSGA2Solver,
+        sensor: ParetoStateSensor,
+        controller: RuleBasedController,
+        logger: EventLogger | None = None,
+    ) -> None:
+        self.solver = solver
+        self.sensor = sensor
+        self.controller = controller
+        self.logger = logger
+
+    def run(self, *, generations: int, reference_point: tuple[float, ...] | None = None) -> list[ParetoState]:
+        """Execute closed-loop optimization and return sensed states."""
+        if generations < 0:
+            raise ValueError("generations must be >= 0")
+        population = self.solver.initialize_population()
+        previous_state: ParetoState | None = None
+        states: list[ParetoState] = []
+
+        initial_state = self.sensor.sense(
+            generation=0,
+            population=population,
+            previous_state=None,
+            reference_point=reference_point,
+        )
+        states.append(initial_state)
+        self._log_state(initial_state, self.solver.config.mutation_prob, self.solver.config.crossover_prob)
+        previous_state = initial_state
+
+        for generation in range(1, generations + 1):
+            population = self.solver.evolve_one_generation(population)
+            state = self.sensor.sense(
+                generation=generation,
+                population=population,
+                previous_state=previous_state,
+                reference_point=reference_point,
+            )
+            states.append(state)
+            self._log_state(state, self.solver.config.mutation_prob, self.solver.config.crossover_prob)
+
+            if generation % self.controller.config.control_interval == 0:
+                action = self.controller.decide(
+                    state=state,
+                    current_mutation=self.solver.config.mutation_prob,
+                    current_crossover=self.solver.config.crossover_prob,
+                )
+                self.solver.set_operator_probs(
+                    mutation_prob=action.mutation_prob,
+                    crossover_prob=action.crossover_prob,
+                )
+                self._log_action(action)
+
+            previous_state = state
+
+        return states
+
+    def _log_state(self, state: ParetoState, mutation_prob: float, crossover_prob: float) -> None:
+        if self.logger is None:
+            return
+        self.logger.log(
+            {
+                "event": "state",
+                **state.to_dict(),
+                "mutation_prob": mutation_prob,
+                "crossover_prob": crossover_prob,
+            }
+        )
+
+    def _log_action(self, action: ControlAction) -> None:
+        if self.logger is None:
+            return
+        self.logger.log({"event": "action", **action.to_dict()})
+
+
+def _clip(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
