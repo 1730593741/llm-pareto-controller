@@ -60,6 +60,10 @@ class LLMRuntimeConfig(BaseModel):
     timeout_s: float = 10.0
     max_retries: int = 2
     api_key_env: str = "OPENAI_API_KEY"
+    base_url_env: str = "OPENAI_BASE_URL"
+    model_env: str = "OPENAI_MODEL"
+    base_url: str = "https://api.openai.com/v1/chat/completions"
+    fallback_mode: Literal["mock_llm", "hold"] = "mock_llm"
 
 
 class ExperimentConfig(BaseModel):
@@ -107,6 +111,10 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
             timeout_s=config.llm.timeout_s,
             max_retries=config.llm.max_retries,
             api_key_env=config.llm.api_key_env,
+            base_url_env=config.llm.base_url_env,
+            model_env=config.llm.model_env,
+            base_url=config.llm.base_url,
+            fallback_mode=config.llm.fallback_mode,
         )
     )
     analyst = Analyst(llm_client)

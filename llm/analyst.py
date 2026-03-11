@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 from infra.llm_client import LLMClient
 from memory.experience_pool import ExperienceRecord
 from sensing.pareto_state import ParetoState
+
+logger = logging.getLogger(__name__)
 
 
 class AnalysisResult(BaseModel):
@@ -33,5 +36,17 @@ class Analyst:
             "state": state.to_dict(),
             "recent_experiences": [record.to_dict() for record in recent_experiences],
         }
-        raw = self.client.generate_json(task="analyst", payload=payload, prompt_template=self.prompt_template)
-        return AnalysisResult.model_validate(raw)
+        response = self.client.generate_json(task="analyst", payload=payload, prompt_template=self.prompt_template)
+        if not response.content:
+            logger.warning("Analyst hold fallback due to llm error: %s", response.error)
+            return AnalysisResult(
+                stagnating=state.stagnation_len > 0,
+                feasibility_risk=state.feasible_ratio < 0.6,
+                diversity_risk=state.diversity_score < 0.12,
+                trend="flat" if abs(state.delta_hv) <= 1e-4 else "improving",
+                summary="fallback_from_llm_error",
+            )
+        result = AnalysisResult.model_validate(response.content)
+        if response.error:
+            logger.warning("Analyst used fallback mode=%s: %s", response.mode_used, response.error)
+        return result

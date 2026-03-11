@@ -5,7 +5,7 @@ A research-oriented Python project for **LLM closed-loop control of NSGA-II** in
 Current progress includes:
 - M4: runnable rule-based closed loop (`state` + `action` logging)
 - M5 MVP: optional experience memory (`state -> action -> reward -> next_state`)
-- M6-A: pluggable controller mode (`rule` / `mock_llm`) with structured Analyst -> Strategist -> Actuator chain
+- M6-B: pluggable controller mode (`rule` / `mock_llm` / `real_llm`) with structured Analyst -> Strategist -> Actuator chain and fallback safeguards
 
 ## Quick start
 
@@ -39,9 +39,21 @@ Controller mode config:
 - `controller_mode.mode`: `rule` (default) / `mock_llm` / `real_llm`
 - `controller_mode.experience_lookback`: experience window used by LLM chain
 
+LLM runtime config:
+- `llm.api_key_env`: env var name used to load API Key
+- `llm.base_url_env`: optional env var name used to override endpoint URL
+- `llm.model_env`: optional env var name used to override model name
+- `llm.base_url`: default endpoint URL when `base_url_env` is unset
+- `llm.fallback_mode`: `mock_llm` or `hold` when real call fails
+
 Mock LLM run example:
 ```bash
 python -c "from main import main; main('experiments/configs/mock_llm.yaml')"
+```
+
+Real LLM config example (still safe without key due to fallback):
+```bash
+python -c "from main import main; main('experiments/configs/real_llm.yaml')"
 ```
 
 ## Testing
