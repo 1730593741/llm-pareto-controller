@@ -1,9 +1,11 @@
-"""Run the M6-ready closed-loop NSGA-II workflow."""
+"""Run configurable closed-loop NSGA-II experiments."""
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -21,6 +23,7 @@ from llm.actuator import Actuator
 from llm.analyst import Analyst
 from llm.strategist import Strategist
 from memory.experience_pool import ExperiencePool
+from experiments.logging import split_event_stream
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from sensing.pareto_state import ParetoStateSensor
 
@@ -40,7 +43,7 @@ class MemoryConfig(BaseModel):
 
     enabled: bool = True
     memory_window: int = 100
-    experience_log_path: str | None = Field(default="runs/m5/experiences.jsonl")
+    experience_log_path: str | None = None
     reward_alpha: float = 1.0
     reward_beta: float = 0.1
 
@@ -66,6 +69,25 @@ class LLMRuntimeConfig(BaseModel):
     fallback_mode: Literal["mock_llm", "hold"] = "mock_llm"
 
 
+class LoggingConfig(BaseModel):
+    """Output layout for reproducible experiment artifacts."""
+
+    output_dir: str = "experiments/logs/default"
+    events_file: str = "events.jsonl"
+    experiences_file: str = "experiences.jsonl"
+    summary_file: str = "summary.json"
+    config_snapshot_file: str = "config_snapshot.yaml"
+    generation_log_file: str = "generation_metrics.jsonl"
+    action_log_file: str = "actions.jsonl"
+
+
+class ExperimentMetaConfig(BaseModel):
+    """Lightweight metadata persisted into summary output."""
+
+    name: str = "default"
+    seed: int | None = None
+
+
 class ExperimentConfig(BaseModel):
     """Top-level experiment config parsed from YAML."""
 
@@ -74,8 +96,33 @@ class ExperimentConfig(BaseModel):
     controller_mode: ControllerModeConfig = Field(default_factory=ControllerModeConfig)
     llm: LLMRuntimeConfig = Field(default_factory=LLMRuntimeConfig)
     problem: ProblemConfig
-    log_path: str = Field(default="runs/m4/events.jsonl")
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    experiment: ExperimentMetaConfig = Field(default_factory=ExperimentMetaConfig)
+    log_path: str | None = None
+
+
+@dataclass(slots=True)
+class RunArtifacts:
+    """Resolved file paths for one concrete run."""
+
+    output_dir: Path
+    events_path: Path
+    experiences_path: Path | None
+    summary_path: Path
+    config_snapshot_path: Path
+    generation_log_path: Path
+    action_log_path: Path
+
+
+@dataclass(slots=True)
+class RuntimeBundle:
+    """Assembled runtime pieces used by main and baseline wrappers."""
+
+    config: ExperimentConfig
+    solver: NSGA2Solver
+    runner: ClosedLoopRunner
+    artifacts: RunArtifacts
 
 
 def load_config(path: str | Path) -> ExperimentConfig:
@@ -98,7 +145,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
 
 
 def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChainController:
-    """Build rule or mock-LLM controller by mode without changing runner API."""
+    """Build rule or LLM controller by mode without changing runner API."""
     mode = config.controller_mode.mode
     if mode == "rule":
         return RuleBasedController(config.controller)
@@ -135,21 +182,40 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
     )
 
 
-def main(config_path: str = "experiments/configs/default.yaml") -> None:
-    """Run closed loop and print final summary."""
-    config = load_config(config_path)
+def resolve_artifacts(config: ExperimentConfig) -> RunArtifacts:
+    """Resolve and create output paths for one run."""
+    output_dir = Path(config.logging.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
+    events_path = Path(config.log_path) if config.log_path else output_dir / config.logging.events_file
+    experiences_path: Path | None = None
+    if config.memory.enabled:
+        if config.memory.experience_log_path:
+            experiences_path = Path(config.memory.experience_log_path)
+        else:
+            experiences_path = output_dir / config.logging.experiences_file
+
+    return RunArtifacts(
+        output_dir=output_dir,
+        events_path=events_path,
+        experiences_path=experiences_path,
+        summary_path=output_dir / config.logging.summary_file,
+        config_snapshot_path=output_dir / config.logging.config_snapshot_file,
+        generation_log_path=output_dir / config.logging.generation_log_file,
+        action_log_path=output_dir / config.logging.action_log_file,
+    )
+
+
+def build_runtime(config: ExperimentConfig) -> RuntimeBundle:
+    """Assemble solver, controller, runner, and output artifacts."""
+    artifacts = resolve_artifacts(config)
     solver = build_solver(config.problem, config.optimizer)
     sensor = ParetoStateSensor()
     controller = build_controller(config)
-    logger = JsonlLogger(config.log_path)
+    logger = JsonlLogger(artifacts.events_path)
 
     experience_pool = ExperiencePool(config.memory.memory_window) if config.memory.enabled else None
-    experience_logger = (
-        ExperienceJsonlLogger(config.memory.experience_log_path)
-        if config.memory.enabled and config.memory.experience_log_path
-        else None
-    )
+    experience_logger = ExperienceJsonlLogger(artifacts.experiences_path) if artifacts.experiences_path else None
     reward_config = RewardConfig(alpha=config.memory.reward_alpha, beta=config.memory.reward_beta)
 
     runner = ClosedLoopRunner(
@@ -161,15 +227,69 @@ def main(config_path: str = "experiments/configs/default.yaml") -> None:
         experience_logger=experience_logger,
         reward_config=reward_config,
     )
-    states = runner.run(generations=config.optimizer.generations)
+    return RuntimeBundle(config=config, solver=solver, runner=runner, artifacts=artifacts)
+
+
+def _write_config_snapshot(path: Path, config: ExperimentConfig, config_path: str | Path) -> None:
+    payload = {
+        "source_config_path": str(config_path),
+        "resolved_config": config.model_dump(mode="json"),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
+
+
+def _write_summary(path: Path, summary: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+
+
+def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dict[str, Any]:
+    """Run one experiment and persist snapshot + summary outputs."""
+    config = load_config(config_path)
+    runtime = build_runtime(config)
+    _write_config_snapshot(runtime.artifacts.config_snapshot_path, config, config_path)
+
+    states = runtime.runner.run(generations=config.optimizer.generations)
+    split_event_stream(
+        events_path=runtime.artifacts.events_path,
+        state_log_path=runtime.artifacts.generation_log_path,
+        action_log_path=runtime.artifacts.action_log_path,
+    )
 
     final = states[-1]
+    summary = {
+        "experiment": config.experiment.model_dump(mode="json"),
+        "controller_mode": config.controller_mode.mode,
+        "generations": config.optimizer.generations,
+        "final_generation": final.generation,
+        "final_hv": final.hv,
+        "final_feasible_ratio": final.feasible_ratio,
+        "final_rank1_ratio": final.rank1_ratio,
+        "final_mutation_prob": runtime.solver.config.mutation_prob,
+        "final_crossover_prob": runtime.solver.config.crossover_prob,
+        "events_path": str(runtime.artifacts.events_path),
+        "experiences_path": str(runtime.artifacts.experiences_path) if runtime.artifacts.experiences_path else None,
+        "config_snapshot_path": str(runtime.artifacts.config_snapshot_path),
+        "generation_log_path": str(runtime.artifacts.generation_log_path),
+        "action_log_path": str(runtime.artifacts.action_log_path),
+    }
+    _write_summary(runtime.artifacts.summary_path, summary)
+    summary["summary_path"] = str(runtime.artifacts.summary_path)
+    return summary
+
+
+def main(config_path: str = "experiments/configs/default.yaml") -> None:
+    """Run closed loop and print final summary."""
+    summary = run_experiment(config_path)
     print(
         "Run complete | "
-        f"generation={final.generation} hv={final.hv:.4f} "
-        f"mutation_prob={solver.config.mutation_prob:.3f} "
-        f"crossover_prob={solver.config.crossover_prob:.3f} "
-        f"log_path={config.log_path}"
+        f"generation={summary['final_generation']} hv={summary['final_hv']:.4f} "
+        f"mutation_prob={summary['final_mutation_prob']:.3f} "
+        f"crossover_prob={summary['final_crossover_prob']:.3f} "
+        f"log_path={summary['events_path']}"
     )
 
 
