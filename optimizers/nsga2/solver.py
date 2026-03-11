@@ -73,6 +73,15 @@ class NSGA2Solver:
         self.config = config
         self.rng = random.Random(config.seed)
 
+    def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
+        """Update operator probabilities at runtime for closed-loop control."""
+        if not 0.0 <= crossover_prob <= 1.0:
+            raise ValueError("crossover_prob must be in [0, 1]")
+        if not 0.0 <= mutation_prob <= 1.0:
+            raise ValueError("mutation_prob must be in [0, 1]")
+        self.config.mutation_prob = mutation_prob
+        self.config.crossover_prob = crossover_prob
+
     def _evaluate(self, genome: list[int]) -> Individual:
         objectives = compute_objectives(
             assignment=genome,
@@ -88,7 +97,8 @@ class NSGA2Solver:
             feasible=cv <= 0.0,
         )
 
-    def _initialize_population(self) -> list[Individual]:
+    def initialize_population(self) -> list[Individual]:
+        """Create an initial repaired population for iterative closed-loop use."""
         return [
             self._evaluate(
                 repair_overloaded_assignment(
@@ -132,14 +142,18 @@ class NSGA2Solver:
 
         return offspring[: self.config.population_size]
 
+    def evolve_one_generation(self, population: list[Individual]) -> list[Individual]:
+        """Run a single evolutionary generation and return selected population."""
+        offspring = self._make_offspring(population)
+        merged = population + offspring
+        return environmental_selection(merged, self.config.population_size)
+
     def run(self) -> list[Individual]:
         """Run NSGA-II and return final population."""
-        population = self._initialize_population()
+        population = self.initialize_population()
 
         for _ in range(self.config.generations):
-            offspring = self._make_offspring(population)
-            merged = population + offspring
-            population = environmental_selection(merged, self.config.population_size)
+            population = self.evolve_one_generation(population)
 
         self._annotate_population(population)
         return population
