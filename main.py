@@ -1,14 +1,25 @@
-"""Run the M4/M5 rule-based closed-loop NSGA-II workflow."""
+"""Run the M6-ready closed-loop NSGA-II workflow."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
 
-from controller.closed_loop import ClosedLoopRunner, RewardConfig, RuleBasedController, RuleControllerConfig
+from controller.closed_loop import (
+    ClosedLoopRunner,
+    LLMChainController,
+    RewardConfig,
+    RuleBasedController,
+    RuleControllerConfig,
+)
+from infra.llm_client import LLMClient, LLMClientConfig
 from infra.storage import ExperienceJsonlLogger, JsonlLogger
+from llm.actuator import Actuator
+from llm.analyst import Analyst
+from llm.strategist import Strategist
 from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from sensing.pareto_state import ParetoStateSensor
@@ -34,11 +45,30 @@ class MemoryConfig(BaseModel):
     reward_beta: float = 0.1
 
 
+class ControllerModeConfig(BaseModel):
+    """Controller mode switch and mode-specific options."""
+
+    mode: Literal["rule", "mock_llm", "real_llm"] = "rule"
+    experience_lookback: int = 5
+
+
+class LLMRuntimeConfig(BaseModel):
+    """Config schema for LLM runtime backend."""
+
+    provider: str = "openai"
+    model: str = "gpt-mock"
+    timeout_s: float = 10.0
+    max_retries: int = 2
+    api_key_env: str = "OPENAI_API_KEY"
+
+
 class ExperimentConfig(BaseModel):
     """Top-level experiment config parsed from YAML."""
 
     optimizer: NSGA2Config
     controller: RuleControllerConfig
+    controller_mode: ControllerModeConfig = Field(default_factory=ControllerModeConfig)
+    llm: LLMRuntimeConfig = Field(default_factory=LLMRuntimeConfig)
     problem: ProblemConfig
     log_path: str = Field(default="runs/m4/events.jsonl")
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
@@ -63,13 +93,47 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
     )
 
 
+def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChainController:
+    """Build rule or mock-LLM controller by mode without changing runner API."""
+    mode = config.controller_mode.mode
+    if mode == "rule":
+        return RuleBasedController(config.controller)
+
+    llm_client = LLMClient(
+        LLMClientConfig(
+            mode=mode,
+            provider=config.llm.provider,
+            model=config.llm.model,
+            timeout_s=config.llm.timeout_s,
+            max_retries=config.llm.max_retries,
+            api_key_env=config.llm.api_key_env,
+        )
+    )
+    analyst = Analyst(llm_client)
+    strategist = Strategist(llm_client)
+    actuator = Actuator(
+        llm_client,
+        min_mutation_prob=config.controller.min_mutation_prob,
+        max_mutation_prob=config.controller.max_mutation_prob,
+        min_crossover_prob=config.controller.min_crossover_prob,
+        max_crossover_prob=config.controller.max_crossover_prob,
+    )
+    return LLMChainController(
+        control_interval=config.controller.control_interval,
+        experience_lookback=config.controller_mode.experience_lookback,
+        analyst=analyst,
+        strategist=strategist,
+        actuator=actuator,
+    )
+
+
 def main(config_path: str = "experiments/configs/default.yaml") -> None:
     """Run closed loop and print final summary."""
     config = load_config(config_path)
 
     solver = build_solver(config.problem, config.optimizer)
     sensor = ParetoStateSensor()
-    controller = RuleBasedController(config.controller)
+    controller = build_controller(config)
     logger = JsonlLogger(config.log_path)
 
     experience_pool = ExperiencePool(config.memory.memory_window) if config.memory.enabled else None

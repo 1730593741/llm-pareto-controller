@@ -5,6 +5,7 @@ A research-oriented Python project for **LLM closed-loop control of NSGA-II** in
 Current progress includes:
 - M4: runnable rule-based closed loop (`state` + `action` logging)
 - M5 MVP: optional experience memory (`state -> action -> reward -> next_state`)
+- M6-A: pluggable controller mode (`rule` / `mock_llm`) with structured Analyst -> Strategist -> Actuator chain
 
 ## Quick start
 
@@ -33,6 +34,15 @@ Default config: `experiments/configs/default.yaml`
 - `memory.reward_alpha` / `memory.reward_beta`: reward weights
 
 When `memory.enabled: false`, the system remains in the M4-compatible rule loop path.
+
+Controller mode config:
+- `controller_mode.mode`: `rule` (default) / `mock_llm` / `real_llm`
+- `controller_mode.experience_lookback`: experience window used by LLM chain
+
+Mock LLM run example:
+```bash
+python -c "from main import main; main('experiments/configs/mock_llm.yaml')"
+```
 
 ## Testing
 
