@@ -31,25 +31,25 @@ controller:
   improvement_threshold: 0.0001
 
 controller_mode:
-  mode: mock_llm
+  mode: real_llm
   experience_lookback: 4
 
 llm:
   provider: openai
-  model: gpt-mock
+  model: gpt-4o-mini
   timeout_s: 8.0
-  max_retries: 1
+  max_retries: 2
   api_key_env: OPENAI_API_KEY
   base_url_env: OPENAI_BASE_URL
   model_env: OPENAI_MODEL
   base_url: https://api.openai.com/v1/chat/completions
   fallback_mode: mock_llm
 
-log_path: runs/m6/mock_llm_events.jsonl
+log_path: runs/m6/real_llm_events.jsonl
 
 memory:
   enabled: true
   memory_window: 100
-  experience_log_path: runs/m6/mock_llm_experiences.jsonl
+  experience_log_path: runs/m6/real_llm_experiences.jsonl
   reward_alpha: 1.0
   reward_beta: 0.1

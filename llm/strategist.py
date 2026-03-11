@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Literal
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 
 from infra.llm_client import LLMClient
 from llm.analyst import AnalysisResult
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyDecision(BaseModel):
@@ -27,5 +30,11 @@ class Strategist:
 
     def plan(self, diagnosis: AnalysisResult) -> StrategyDecision:
         payload = {"diagnosis": diagnosis.model_dump()}
-        raw = self.client.generate_json(task="strategist", payload=payload, prompt_template=self.prompt_template)
-        return StrategyDecision.model_validate(raw)
+        response = self.client.generate_json(task="strategist", payload=payload, prompt_template=self.prompt_template)
+        if not response.content:
+            logger.warning("Strategist hold fallback due to llm error: %s", response.error)
+            return StrategyDecision(strategy="stabilize_exploitation", rationale="fallback_from_llm_error")
+        decision = StrategyDecision.model_validate(response.content)
+        if response.error:
+            logger.warning("Strategist used fallback mode=%s: %s", response.mode_used, response.error)
+        return decision
