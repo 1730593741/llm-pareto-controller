@@ -44,6 +44,27 @@ class NSGA2Solver:
         capacities: Sequence[float],
         config: NSGA2Config,
     ) -> None:
+        if config.population_size <= 1:
+            raise ValueError("population_size must be > 1")
+        if config.generations < 0:
+            raise ValueError("generations must be >= 0")
+        if not 0.0 <= config.crossover_prob <= 1.0:
+            raise ValueError("crossover_prob must be in [0, 1]")
+        if not 0.0 <= config.mutation_prob <= 1.0:
+            raise ValueError("mutation_prob must be in [0, 1]")
+        if n_tasks < 0:
+            raise ValueError("n_tasks must be >= 0")
+        if n_resources <= 0:
+            raise ValueError("n_resources must be > 0")
+        if len(cost_matrix) != n_tasks:
+            raise ValueError("cost_matrix row count must equal n_tasks")
+        if len(task_loads) != n_tasks:
+            raise ValueError("task_loads length must equal n_tasks")
+        if len(capacities) != n_resources:
+            raise ValueError("capacities length must equal n_resources")
+        if any(len(row) != n_resources for row in cost_matrix):
+            raise ValueError("each cost_matrix row length must equal n_resources")
+
         self.n_tasks = n_tasks
         self.n_resources = n_resources
         self.cost_matrix = cost_matrix

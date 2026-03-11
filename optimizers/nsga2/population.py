@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Iterator
 
 from problems.task_assignment.encoding import Assignment
 
@@ -36,7 +37,7 @@ class Population:
 
     individuals: list[Individual] = field(default_factory=list)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Individual]:
         return iter(self.individuals)
 
     def __len__(self) -> int:
