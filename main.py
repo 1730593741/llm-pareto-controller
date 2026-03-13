@@ -286,6 +286,16 @@ def _write_summary(path: Path, summary: dict[str, Any]) -> None:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
 
+def _count_control_states(action_events: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for event in action_events:
+        state = event.get("control_state")
+        if not isinstance(state, str):
+            continue
+        counts[state] = counts.get(state, 0) + 1
+    return counts
+
+
 def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dict[str, Any]:
     """Run one experiment and persist snapshot + summary outputs."""
     config = load_config(config_path)
@@ -339,6 +349,7 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         "events_path": str(runtime.artifacts.events_path),
         "experiences_path": str(runtime.artifacts.experiences_path) if runtime.artifacts.experiences_path else None,
         "num_actions": len(action_events),
+        "control_state_counts": _count_control_states(action_events),
         "num_experiences": num_experiences,
         "config_snapshot_path": str(runtime.artifacts.config_snapshot_path),
         "generation_log_path": str(runtime.artifacts.generation_log_path),

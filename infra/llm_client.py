@@ -159,44 +159,59 @@ class LLMClient:
             feasible_ratio = float(state.get("feasible_ratio", 1.0))
             stagnation_len = int(state.get("stagnation_len", 0))
             diversity_score = float(state.get("diversity_score", 1.0))
+            experiences = payload.get("recent_experiences", [])
+            rewards = [float(item.get("reward", 0.0)) for item in experiences if isinstance(item, dict)]
+            reward_trend = (sum(rewards) / len(rewards)) if rewards else 0.0
+            if feasible_ratio < 0.6:
+                control_state = "increase_feasibility"
+                reason = "mock_low_feasible_ratio"
+            elif diversity_score < 0.12:
+                control_state = "increase_diversity"
+                reason = "mock_low_diversity"
+            elif stagnation_len > 0 or float(state.get("delta_hv", 0.0)) <= 1e-4 or reward_trend < -1e-6:
+                control_state = "increase_convergence"
+                reason = "mock_stagnation_or_negative_recent_reward"
+            else:
+                control_state = "maintain_balance"
+                reason = "mock_balanced"
             return {
-                "stagnating": stagnation_len > 0,
-                "feasibility_risk": feasible_ratio < 0.6,
-                "diversity_risk": diversity_score < 0.12,
-                "trend": "improving" if float(state.get("delta_hv", 0.0)) > 1e-4 else "flat",
-                "summary": "mock diagnosis",
+                "control_state": control_state,
+                "reason": reason,
+                "convergence_signal": float(state.get("rank1_ratio", 0.0)),
+                "diversity_signal": diversity_score,
+                "feasibility_signal": feasible_ratio,
             }
 
         if task == "strategist":
             diagnosis = payload.get("diagnosis", {})
-            if diagnosis.get("feasibility_risk"):
-                strategy = "improve_feasibility"
-            elif diagnosis.get("diversity_risk") or diagnosis.get("stagnating"):
-                strategy = "increase_exploration"
-            else:
-                strategy = "stabilize_exploitation"
-            return {"strategy": strategy, "rationale": "mock strategy"}
+            return {
+                "control_state": diagnosis.get("control_state", "maintain_balance"),
+                "rationale": "mock strategy",
+            }
 
         if task == "actuator":
-            strategy = payload.get("strategy", {}).get("strategy", "stabilize_exploitation")
+            strategy = payload.get("strategy", {}).get("control_state", "maintain_balance")
             params = payload.get("current_params", {})
             mutation = float(params.get("mutation_prob", 0.1))
             crossover = float(params.get("crossover_prob", 0.9))
 
-            if strategy == "increase_exploration":
+            if strategy == "increase_diversity":
                 mutation += 0.06
                 crossover -= 0.04
-            elif strategy == "improve_feasibility":
+            elif strategy == "increase_feasibility":
                 mutation -= 0.03
                 crossover += 0.04
-            else:
+            elif strategy == "increase_convergence":
                 mutation -= 0.02
-                crossover += 0.02
+                crossover += 0.03
+            else:
+                mutation += 0.0
+                crossover += 0.0
 
             return {
                 "mutation_prob": mutation,
                 "crossover_prob": crossover,
-                "reason": f"mock::{strategy}",
+                "reason_detail": f"mock::{strategy}",
             }
 
         raise ValueError(f"Unsupported llm task: {task}")

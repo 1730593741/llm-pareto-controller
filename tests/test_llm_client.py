@@ -11,16 +11,17 @@ def test_llm_client_mock_mode_returns_structured_payload() -> None:
     client = LLMClient(LLMClientConfig(mode="mock_llm"))
     response = client.generate_json(
         task="strategist",
-        payload={"diagnosis": {"feasibility_risk": False, "diversity_risk": False, "stagnating": False}},
+        payload={"diagnosis": {"control_state": "maintain_balance"}},
         prompt_template="ignored",
     )
 
     assert response.success is True
     assert response.content is not None
-    assert response.content["strategy"] in {
-        "increase_exploration",
-        "improve_feasibility",
-        "stabilize_exploitation",
+    assert response.content["control_state"] in {
+        "increase_diversity",
+        "increase_convergence",
+        "increase_feasibility",
+        "maintain_balance",
     }
 
 
@@ -90,7 +91,7 @@ def test_llm_client_real_mode_success_with_fake_transport(monkeypatch) -> None:
 
     def _ok(**kwargs):
         assert kwargs["model"] == "gpt-test"
-        return {"strategy": "stabilize_exploitation", "rationale": "ok"}
+        return {"control_state": "maintain_balance", "rationale": "ok"}
 
     monkeypatch.setattr(client, "_call_real_with_retry", _ok)
 
@@ -98,4 +99,4 @@ def test_llm_client_real_mode_success_with_fake_transport(monkeypatch) -> None:
 
     assert response.success is True
     assert response.mode_used == "real_llm"
-    assert response.content == {"strategy": "stabilize_exploitation", "rationale": "ok"}
+    assert response.content == {"control_state": "maintain_balance", "rationale": "ok"}
