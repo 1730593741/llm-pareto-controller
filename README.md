@@ -77,6 +77,11 @@ python -c "from experiments.baselines.runner import run_no_memory_baseline; prin
 
 可用于派生临时配置做对照实验。
 
+
+## 论文实验链路
+
+完整实验矩阵、消融矩阵、结果导出与命令清单见：`EXPERIMENTS.md`。
+
 ## 测试
 
 ```bash

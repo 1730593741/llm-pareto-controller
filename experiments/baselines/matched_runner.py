@@ -1,4 +1,4 @@
-"""Helpers to run matched baseline/rule/mock-LLM experiments with aligned settings."""
+"""Helpers to run matched experiments with aligned seeds/benchmarks/optimizer settings."""
 
 from __future__ import annotations
 
@@ -14,6 +14,14 @@ _MATCHED_CONFIGS: dict[str, str] = {
     "baseline_nsga2": "experiments/configs/baseline_nsga2.yaml",
     "rule_control": "experiments/configs/rule_control.yaml",
     "mock_llm": "experiments/configs/mock_llm.yaml",
+    "real_llm": "experiments/configs/real_llm.yaml",
+}
+
+_BENCHMARK_CONFIGS: dict[str, str] = {
+    "small_complex_smoke": "experiments/configs/small_complex_smoke.yaml",
+    "small_complex": "experiments/configs/small_complex.yaml",
+    "medium_complex": "experiments/configs/medium_complex.yaml",
+    "hard_complex": "experiments/configs/hard_complex.yaml",
 }
 
 
@@ -28,35 +36,72 @@ def _dump_yaml(path: str | Path, payload: dict[str, Any]) -> None:
         yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
 
 
+def _resolve_methods(methods: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    selected = tuple(methods) if methods else tuple(_MATCHED_CONFIGS.keys())
+    unsupported = [method for method in selected if method not in _MATCHED_CONFIGS]
+    if unsupported:
+        raise ValueError(f"Unsupported matched methods: {unsupported}")
+    return selected
+
+
+def _build_matched_payload(
+    *,
+    method: str,
+    benchmark: str,
+    seed: int,
+    generations: int,
+    population_size: int,
+    output_dir: Path,
+) -> dict[str, Any]:
+    payload = copy.deepcopy(_load_yaml(_MATCHED_CONFIGS[method]))
+    benchmark_payload = _load_yaml(_BENCHMARK_CONFIGS[benchmark])
+
+    payload["problem"] = copy.deepcopy(benchmark_payload["problem"])
+    payload.setdefault("optimizer", {})["seed"] = seed
+    payload["optimizer"]["generations"] = generations
+    payload["optimizer"]["population_size"] = population_size
+
+    payload.setdefault("experiment", {})["seed"] = seed
+    payload["experiment"]["name"] = f"matched_{method}_{benchmark}_seed{seed}"
+    payload["experiment"]["method"] = method
+    payload["experiment"]["benchmark"] = benchmark
+
+    payload.setdefault("logging", {})["output_dir"] = str(output_dir)
+    return payload
+
+
 def run_matched_experiments(
     *,
     output_root: str | Path,
     seed: int,
     generations: int,
+    population_size: int = 24,
+    benchmark: str = "small_complex",
+    methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Run 3 modes with matched seed/generation/problem config and return their summaries."""
+    """Run matched method comparisons under a single seed + benchmark setting."""
+    if benchmark not in _BENCHMARK_CONFIGS:
+        raise ValueError(f"Unsupported benchmark '{benchmark}'")
+
+    selected_methods = _resolve_methods(methods)
     output_root_path = Path(output_root)
     output_root_path.mkdir(parents=True, exist_ok=True)
-
-    base_payload = _load_yaml(_MATCHED_CONFIGS["baseline_nsga2"])
     results: dict[str, dict[str, Any]] = {}
 
-    for mode_name, config_path in _MATCHED_CONFIGS.items():
-        payload = _load_yaml(config_path)
-        matched_payload = copy.deepcopy(payload)
-        matched_payload["problem"] = copy.deepcopy(base_payload["problem"])
-        matched_payload.setdefault("optimizer", {})["seed"] = seed
-        matched_payload["optimizer"]["generations"] = generations
-        matched_payload.setdefault("experiment", {})["seed"] = seed
-        matched_payload["experiment"]["name"] = f"matched_{mode_name}"
-
-        log_dir = output_root_path / mode_name
-        matched_payload.setdefault("logging", {})["output_dir"] = str(log_dir)
-
-        config_tmp_path = output_root_path / f"{mode_name}.matched.tmp.yaml"
+    for method in selected_methods:
+        log_dir = output_root_path / method
+        matched_payload = _build_matched_payload(
+            method=method,
+            benchmark=benchmark,
+            seed=seed,
+            generations=generations,
+            population_size=population_size,
+            output_dir=log_dir,
+        )
+        config_tmp_path = output_root_path / f"{method}.matched.tmp.yaml"
         _dump_yaml(config_tmp_path, matched_payload)
         try:
-            results[mode_name] = run_experiment(str(config_tmp_path))
+            results[method] = run_experiment(str(config_tmp_path))
         finally:
             if config_tmp_path.exists():
                 config_tmp_path.unlink()
@@ -67,13 +112,13 @@ def run_matched_experiments(
 def run_matched_seed_sweep(
     *,
     output_root: str | Path,
-    seeds: list[int],
+    seeds: list[int] | tuple[int, ...],
     generations: int,
+    population_size: int = 24,
+    benchmark: str = "small_complex",
+    methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[int, dict[str, dict[str, Any]]]:
-    """Run matched 3-way comparisons for multiple seeds.
-
-    Artifacts are stored under ``<output_root>/seed_<seed>/<method>/...``.
-    """
+    """Run matched comparisons for multiple seeds under one benchmark."""
     root = Path(output_root)
     results: dict[int, dict[str, dict[str, Any]]] = {}
     for seed in seeds:
@@ -81,5 +126,40 @@ def run_matched_seed_sweep(
             output_root=root / f"seed_{seed}",
             seed=seed,
             generations=generations,
+            population_size=population_size,
+            benchmark=benchmark,
+            methods=methods,
         )
     return results
+
+
+def run_matched_matrix(
+    *,
+    output_root: str | Path,
+    benchmarks: list[str] | tuple[str, ...],
+    seeds: list[int] | tuple[int, ...],
+    generations: int,
+    population_size: int,
+    methods: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, dict[int, dict[str, dict[str, Any]]]]:
+    """Run full matched matrix across benchmark x seed x method."""
+    root = Path(output_root)
+    matrix_results: dict[str, dict[int, dict[str, dict[str, Any]]]] = {}
+    for benchmark in benchmarks:
+        benchmark_root = root / benchmark
+        matrix_results[benchmark] = run_matched_seed_sweep(
+            output_root=benchmark_root,
+            seeds=seeds,
+            generations=generations,
+            population_size=population_size,
+            benchmark=benchmark,
+            methods=methods,
+        )
+    return matrix_results
+
+
+__all__ = [
+    "run_matched_experiments",
+    "run_matched_seed_sweep",
+    "run_matched_matrix",
+]

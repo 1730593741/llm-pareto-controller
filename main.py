@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import argparse
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -149,6 +150,8 @@ class ExperimentMetaConfig(BaseModel):
 
     name: str = "default"
     seed: int | None = None
+    method: str | None = None
+    benchmark: str | None = None
 
 
 class EvaluationConfig(BaseModel):
@@ -415,7 +418,9 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         run_id=run_id,
     )
 
+    start_ts = time.perf_counter()
     states = runtime.runner.run(generations=config.optimizer.generations)
+    runtime_s = time.perf_counter() - start_ts
     split_event_stream(
         events_path=runtime.artifacts.events_path,
         state_log_path=runtime.artifacts.generation_log_path,
@@ -442,9 +447,13 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     final_spacing = spacing(final_front)
     final_spread = spread(final_front, reference_front.points) if final_front and reference_front.points else 0.0
 
+    llm_overhead_s = sum(float(event.get("decision_runtime_s", 0.0)) for event in action_events)
+
     summary = {
         "experiment": config.experiment.model_dump(mode="json"),
         "controller_mode": config.controller_mode.mode,
+        "method": config.experiment.method or config.experiment.name,
+        "benchmark": config.experiment.benchmark or "unknown",
         "seed": config.experiment.seed if config.experiment.seed is not None else config.optimizer.seed,
         "source_config_path": str(config_path),
         "run_id": run_id,
@@ -481,6 +490,8 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         "events_path": str(runtime.artifacts.events_path),
         "experiences_path": str(runtime.artifacts.experiences_path) if runtime.artifacts.experiences_path else None,
         "num_actions": len(action_events),
+        "runtime_s": runtime_s,
+        "llm_overhead_s": llm_overhead_s,
         "control_state_counts": _count_control_states(action_events),
         "num_experiences": num_experiences,
         "config_snapshot_path": str(runtime.artifacts.config_snapshot_path),
