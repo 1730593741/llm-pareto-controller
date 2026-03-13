@@ -3,6 +3,7 @@
 import pytest
 
 from controller.closed_loop import ClosedLoopRunner, RewardConfig, RuleBasedController, RuleControllerConfig
+from controller.control_semantics import ControlState
 from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from sensing.pareto_state import ParetoStateSensor
@@ -62,6 +63,9 @@ def test_closed_loop_runs_and_logs_actions() -> None:
     assert len(states) == 7
     assert states[-1].generation == 6
     assert any(event["event"] == "action" for event in logger.events)
+    action_events = [event for event in logger.events if event["event"] == "action"]
+    assert all("control_state" in event for event in action_events)
+    assert all("reason_detail" in event for event in action_events)
     state_events = [event for event in logger.events if event["event"] == "state"]
     assert state_events
     latest_state_event = state_events[-1]
@@ -135,3 +139,36 @@ def test_closed_loop_skips_terminal_generation_action() -> None:
 
     action_generations = [int(event["generation"]) for event in logger.events if event["event"] == "action"]
     assert action_generations == [3]
+
+
+def test_rule_controller_maps_to_feasibility_state() -> None:
+    solver = _build_solver()
+    controller = RuleBasedController(RuleControllerConfig(control_interval=2, feasible_ratio_low=0.95))
+    population = solver.initialize_population()
+    sensor = ParetoStateSensor()
+    state = sensor.sense(generation=0, population=population, previous_state=None, reference_point=None)
+    state.feasible_ratio = 0.2
+
+    action = controller.decide(
+        state=state,
+        current_mutation=solver.config.mutation_prob,
+        current_crossover=solver.config.crossover_prob,
+    )
+
+    assert action.control_state == ControlState.INCREASE_FEASIBILITY
+
+
+def test_rule_controller_maps_to_diversity_state() -> None:
+    solver = _build_solver()
+    controller = RuleBasedController(RuleControllerConfig(control_interval=2, diversity_low=0.95, feasible_ratio_low=0.0))
+    population = solver.initialize_population()
+    sensor = ParetoStateSensor()
+    state = sensor.sense(generation=0, population=population, previous_state=None, reference_point=None)
+
+    action = controller.decide(
+        state=state,
+        current_mutation=solver.config.mutation_prob,
+        current_crossover=solver.config.crossover_prob,
+    )
+
+    assert action.control_state == ControlState.INCREASE_DIVERSITY

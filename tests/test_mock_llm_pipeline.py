@@ -17,14 +17,19 @@ def test_mock_llm_mode_runs_closed_loop(tmp_path: Path) -> None:
     controller = build_controller(config)
     assert isinstance(controller, LLMChainController)
 
+    experience_pool = ExperiencePool(config.memory.memory_window)
     runner = ClosedLoopRunner(
         solver=solver,
         sensor=ParetoStateSensor(),
         controller=controller,
-        experience_pool=ExperiencePool(config.memory.memory_window),
+        experience_pool=experience_pool,
     )
     states = runner.run(generations=6)
 
     assert states[-1].generation == 6
     assert 0.0 <= solver.config.mutation_prob <= 1.0
     assert 0.0 <= solver.config.crossover_prob <= 1.0
+
+    records = experience_pool.recent(10)
+    assert records
+    assert all("control_state" in record.action for record in records)

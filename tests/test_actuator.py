@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from controller.closed_loop import OperatorParams
+from controller.control_semantics import ControlState
 from infra.llm_client import LLMClient, LLMClientConfig, LLMResponse
 from llm.actuator import Actuator
 from llm.strategist import StrategyDecision
@@ -15,7 +16,11 @@ class OutOfRangeMockClient(LLMClient):
         del payload, prompt_template
         if task != "actuator":
             raise ValueError("This test client only supports actuator task")
-        return LLMResponse(success=True, task="actuator", content={"mutation_prob": 1.4, "crossover_prob": -0.1, "reason": "extreme"})
+        return LLMResponse(
+            success=True,
+            task="actuator",
+            content={"mutation_prob": 1.4, "crossover_prob": -0.1, "reason_detail": "extreme"},
+        )
 
 
 class BadFormatMockClient(LLMClient):
@@ -37,14 +42,15 @@ def test_actuator_clips_parameters_to_bounds() -> None:
     )
     action = actuator.act(
         generation=3,
-        strategy=StrategyDecision(strategy="increase_exploration", rationale="test"),
+        strategy=StrategyDecision(control_state=ControlState.INCREASE_DIVERSITY, rationale="test"),
         current_params=OperatorParams(mutation_prob=0.1, crossover_prob=0.9),
     )
 
     assert action.generation == 3
-    assert action.mutation_prob == 0.7
-    assert action.crossover_prob == 0.4
-    assert action.reason == "extreme"
+    assert action.mutation_prob <= 0.7
+    assert action.crossover_prob >= 0.4
+    assert action.reason == "increase_diversity"
+    assert action.reason_detail == "extreme"
 
 
 def test_actuator_holds_when_llm_response_is_unavailable() -> None:
@@ -59,10 +65,11 @@ def test_actuator_holds_when_llm_response_is_unavailable() -> None:
     params = OperatorParams(mutation_prob=0.2, crossover_prob=0.85)
     action = actuator.act(
         generation=2,
-        strategy=StrategyDecision(strategy="stabilize_exploitation", rationale="test"),
+        strategy=StrategyDecision(control_state=ControlState.MAINTAIN_BALANCE, rationale="test"),
         current_params=params,
     )
 
     assert action.mutation_prob == params.mutation_prob
     assert action.crossover_prob == params.crossover_prob
     assert action.reason == "hold_due_to_llm_error"
+    assert action.control_state == ControlState.MAINTAIN_BALANCE

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
+from controller.control_semantics import ControlState
 from memory.experience_pool import ExperiencePool, ExperienceRecord
 from optimizers.nsga2.solver import NSGA2Solver
 from sensing.pareto_state import ParetoState, ParetoStateSensor
@@ -76,6 +77,8 @@ class ControlAction:
     mutation_prob: float
     crossover_prob: float
     reason: str
+    control_state: ControlState = ControlState.MAINTAIN_BALANCE
+    reason_detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize action for logs."""
@@ -124,37 +127,40 @@ class RuleBasedController:
         else:
             msg = "Either current_params or both current_mutation/current_crossover must be provided"
             raise ValueError(msg)
-        reasons: list[str] = []
-
-        if state.stagnation_len > 0:
-            mutation += self.config.mutation_step
-            crossover -= self.config.crossover_step * 0.5
-            reasons.append("stagnation_up_mutation")
+        control_state = ControlState.MAINTAIN_BALANCE
+        reason_details: list[str] = []
 
         if state.feasible_ratio < self.config.feasible_ratio_low:
+            control_state = ControlState.INCREASE_FEASIBILITY
             mutation -= self.config.mutation_step * 0.5
             crossover += self.config.crossover_step
-            reasons.append("low_feasible_safer_search")
-
-        if state.diversity_score < self.config.diversity_low:
+            reason_details.append("feasible_ratio_below_threshold")
+        elif state.diversity_score < self.config.diversity_low:
+            control_state = ControlState.INCREASE_DIVERSITY
             mutation += self.config.mutation_step
             crossover -= self.config.crossover_step
-            reasons.append("low_diversity_more_exploration")
-
-        if state.delta_hv > self.config.improvement_threshold and state.stagnation_len == 0:
+            reason_details.append("diversity_score_below_threshold")
+        elif state.stagnation_len > 0 or state.delta_hv <= self.config.improvement_threshold:
+            control_state = ControlState.INCREASE_CONVERGENCE
             mutation -= self.config.mutation_step * 0.5
             crossover += self.config.crossover_step * 0.5
-            reasons.append("stable_improvement_reduce_exploration")
+            reason_details.append("stagnation_or_low_hv_progress")
+        else:
+            control_state = ControlState.MAINTAIN_BALANCE
+            reason_details.append("metrics_in_expected_range")
 
         mutation = _clip(mutation, self.config.min_mutation_prob, self.config.max_mutation_prob)
         crossover = _clip(crossover, self.config.min_crossover_prob, self.config.max_crossover_prob)
 
-        reason = ";".join(reasons) if reasons else "hold"
+        reason = control_state.value
+        reason_detail = ";".join(reason_details)
         return ControlAction(
             generation=state.generation,
             mutation_prob=mutation,
             crossover_prob=crossover,
             reason=reason,
+            control_state=control_state,
+            reason_detail=reason_detail,
         )
 
 
