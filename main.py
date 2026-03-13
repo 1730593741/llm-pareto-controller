@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -230,14 +231,53 @@ def build_runtime(config: ExperimentConfig) -> RuntimeBundle:
     return RuntimeBundle(config=config, solver=solver, runner=runner, artifacts=artifacts)
 
 
-def _write_config_snapshot(path: Path, config: ExperimentConfig, config_path: str | Path) -> None:
+
+
+def _config_identity(config: ExperimentConfig, config_path: str | Path) -> tuple[str, str]:
+    """Build deterministic fingerprint and run id from config snapshot inputs."""
+    material = {
+        "source_config_path": str(config_path),
+        "resolved_config": config.model_dump(mode="json"),
+    }
+    canonical = json.dumps(material, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    run_id = f"run-{fingerprint[:12]}"
+    return fingerprint, run_id
+
+
+def _write_config_snapshot(path: Path, config: ExperimentConfig, config_path: str | Path, *, config_fingerprint: str, run_id: str) -> None:
     payload = {
+        "run_id": run_id,
+        "config_fingerprint": config_fingerprint,
         "source_config_path": str(config_path),
         "resolved_config": config.model_dump(mode="json"),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
+
+
+
+
+
+
+def _reset_run_logs(artifacts: RunArtifacts) -> None:
+    """Reset append-only logs so each run keeps isolated metrics/actions counts."""
+    for path in [
+        artifacts.events_path,
+        artifacts.generation_log_path,
+        artifacts.action_log_path,
+        artifacts.experiences_path,
+    ]:
+        if path is not None and path.exists():
+            path.unlink()
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def _write_summary(path: Path, summary: dict[str, Any]) -> None:
@@ -250,7 +290,15 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     """Run one experiment and persist snapshot + summary outputs."""
     config = load_config(config_path)
     runtime = build_runtime(config)
-    _write_config_snapshot(runtime.artifacts.config_snapshot_path, config, config_path)
+    _reset_run_logs(runtime.artifacts)
+    config_fingerprint, run_id = _config_identity(config, config_path)
+    _write_config_snapshot(
+        runtime.artifacts.config_snapshot_path,
+        config,
+        config_path,
+        config_fingerprint=config_fingerprint,
+        run_id=run_id,
+    )
 
     states = runtime.runner.run(generations=config.optimizer.generations)
     split_event_stream(
@@ -260,18 +308,38 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     )
 
     final = states[-1]
+    best_state = max(states, key=lambda state: state.hv)
+    hv_auc = sum(state.hv for state in states) / len(states) if states else 0.0
+
+    generation_events = _read_jsonl(runtime.artifacts.generation_log_path)
+    action_events = _read_jsonl(runtime.artifacts.action_log_path)
+    final_generation_event = generation_events[-1] if generation_events else {}
+    num_experiences = 0
+    if runtime.artifacts.experiences_path and runtime.artifacts.experiences_path.exists():
+        num_experiences = len(_read_jsonl(runtime.artifacts.experiences_path))
+
     summary = {
         "experiment": config.experiment.model_dump(mode="json"),
         "controller_mode": config.controller_mode.mode,
+        "seed": config.experiment.seed if config.experiment.seed is not None else config.optimizer.seed,
+        "source_config_path": str(config_path),
+        "run_id": run_id,
+        "config_fingerprint": config_fingerprint,
         "generations": config.optimizer.generations,
         "final_generation": final.generation,
         "final_hv": final.hv,
+        "best_hv": best_state.hv,
+        "best_generation": best_state.generation,
+        "hv_auc": hv_auc,
+        "mean_hv": hv_auc,
         "final_feasible_ratio": final.feasible_ratio,
         "final_rank1_ratio": final.rank1_ratio,
-        "final_mutation_prob": runtime.solver.config.mutation_prob,
-        "final_crossover_prob": runtime.solver.config.crossover_prob,
+        "final_mutation_prob": final_generation_event.get("mutation_prob", runtime.solver.config.mutation_prob),
+        "final_crossover_prob": final_generation_event.get("crossover_prob", runtime.solver.config.crossover_prob),
         "events_path": str(runtime.artifacts.events_path),
         "experiences_path": str(runtime.artifacts.experiences_path) if runtime.artifacts.experiences_path else None,
+        "num_actions": len(action_events),
+        "num_experiences": num_experiences,
         "config_snapshot_path": str(runtime.artifacts.config_snapshot_path),
         "generation_log_path": str(runtime.artifacts.generation_log_path),
         "action_log_path": str(runtime.artifacts.action_log_path),
