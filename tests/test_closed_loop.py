@@ -62,6 +62,12 @@ def test_closed_loop_runs_and_logs_actions() -> None:
     assert len(states) == 7
     assert states[-1].generation == 6
     assert any(event["event"] == "action" for event in logger.events)
+    state_events = [event for event in logger.events if event["event"] == "state"]
+    assert state_events
+    latest_state_event = state_events[-1]
+    assert "crowding_entropy" in latest_state_event
+    assert "d_dec" in latest_state_event
+    assert "d_front" in latest_state_event
     assert 0.0 <= solver.config.mutation_prob <= 1.0
     assert 0.0 <= solver.config.crossover_prob <= 1.0
 
@@ -86,6 +92,12 @@ def test_closed_loop_records_experience_chain() -> None:
     assert len(experience_pool) == 2
     first = experience_pool.recent(1)[0]
     assert set(first.to_dict().keys()) == {"state", "action", "reward", "next_state"}
+    assert "crowding_entropy" in first.state
+    assert "d_dec" in first.state
+    assert "d_front" in first.state
+    assert "crowding_entropy" in first.next_state
+    assert "d_dec" in first.next_state
+    assert "d_front" in first.next_state
     assert len(experience_logger.records) == 2
 
 
