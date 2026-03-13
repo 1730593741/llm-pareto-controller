@@ -254,7 +254,7 @@ class ClosedLoopRunner:
                 self._finalize_experience(pending_experience, state)
                 pending_experience = None
 
-            if generation % self.controller.control_interval == 0:
+            if generation % self.controller.control_interval == 0 and generation < generations:
                 recent_experiences = self._recent_experiences()
                 action = self.controller.decide(
                     state=state,

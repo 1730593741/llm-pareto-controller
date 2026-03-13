@@ -110,3 +110,16 @@ def test_rule_controller_decide_backwards_compatible_signature() -> None:
     assert action.generation == 0
     assert 0.0 <= action.mutation_prob <= 1.0
     assert 0.0 <= action.crossover_prob <= 1.0
+
+
+def test_closed_loop_skips_terminal_generation_action() -> None:
+    solver = _build_solver()
+    controller = RuleBasedController(RuleControllerConfig(control_interval=3))
+    sensor = ParetoStateSensor()
+    logger = InMemoryLogger()
+
+    runner = ClosedLoopRunner(solver=solver, sensor=sensor, controller=controller, logger=logger)
+    runner.run(generations=6)
+
+    action_generations = [int(event["generation"]) for event in logger.events if event["event"] == "action"]
+    assert action_generations == [3]
