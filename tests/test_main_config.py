@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from main import load_config
+import pytest
+
+from main import load_config, parse_cli_args
 
 
 def test_load_config_backwards_compatible_without_memory_section(tmp_path: Path) -> None:
@@ -46,3 +48,47 @@ log_path: runs/m4/events.jsonl
     assert cfg.memory.reward_beta == 0.1
     assert cfg.controller_mode.mode == "rule"
     assert cfg.controller_mode.experience_lookback == 5
+
+
+def test_problem_config_validates_complex_constraint_shapes(tmp_path: Path) -> None:
+    config_path = tmp_path / "invalid_complex.yaml"
+    config_path.write_text(
+        """
+problem:
+  n_tasks: 2
+  n_resources: 2
+  cost_matrix:
+    - [1.0, 2.0]
+    - [2.0, 1.0]
+  task_loads: [1.0, 1.0]
+  capacities: [1.5, 1.5]
+  compatibility_matrix:
+    - [1, 0, 1]
+    - [1, 1, 1]
+optimizer:
+  population_size: 6
+  generations: 2
+  crossover_prob: 0.9
+  mutation_prob: 0.1
+controller:
+  control_interval: 1
+  min_mutation_prob: 0.03
+  max_mutation_prob: 0.75
+  min_crossover_prob: 0.45
+  max_crossover_prob: 0.98
+  mutation_step: 0.05
+  crossover_step: 0.04
+  feasible_ratio_low: 0.6
+  diversity_low: 0.12
+  improvement_threshold: 0.0001
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="compatibility_matrix column count"):
+        load_config(config_path)
+
+
+def test_parse_cli_args_supports_config_flag_and_positional() -> None:
+    assert parse_cli_args(["--config", "experiments/configs/small_complex_smoke.yaml"]) == "experiments/configs/small_complex_smoke.yaml"
+    assert parse_cli_args(["experiments/configs/default.yaml"]) == "experiments/configs/default.yaml"

@@ -1,0 +1,87 @@
+experiment:
+  name: small_complex
+  seed: 21
+
+problem:
+  n_tasks: 8
+  n_resources: 3
+  cost_matrix:
+    - [2.0, 1.2, 2.8]
+    - [1.8, 2.1, 1.1]
+    - [2.2, 1.5, 1.4]
+    - [1.7, 2.4, 1.3]
+    - [2.4, 1.1, 2.2]
+    - [1.3, 2.0, 1.9]
+    - [2.1, 1.4, 1.6]
+    - [1.5, 2.3, 1.2]
+  task_loads: [1.1, 0.9, 1.0, 1.2, 1.0, 0.8, 1.1, 0.9]
+  capacities: [2.8, 2.8, 2.8]
+  compatibility_matrix:
+    - [1, 1, 0]
+    - [1, 1, 1]
+    - [0, 1, 1]
+    - [1, 0, 1]
+    - [1, 1, 0]
+    - [0, 1, 1]
+    - [1, 0, 1]
+    - [1, 1, 1]
+  task_time_windows:
+    - [0, 2]
+    - [1, 4]
+    - [0, 3]
+    - [2, 5]
+    - [1, 3]
+    - [0, 2]
+    - [2, 4]
+    - [1, 5]
+  resource_time_windows:
+    - [0, 3]
+    - [1, 5]
+    - [2, 6]
+  resource_stage_levels: [1, 2, 3]
+  stage_transitions:
+    - [0, 3]
+    - [1, 4]
+    - [2, 6]
+
+optimizer:
+  population_size: 28
+  generations: 24
+  crossover_prob: 0.9
+  mutation_prob: 0.12
+  repair_prob: 1.0
+  seed: 21
+
+controller:
+  control_interval: 4
+  min_mutation_prob: 0.03
+  max_mutation_prob: 0.75
+  min_crossover_prob: 0.45
+  max_crossover_prob: 0.98
+  min_repair_prob: 0.0
+  max_repair_prob: 1.0
+  mutation_step: 0.05
+  crossover_step: 0.04
+  repair_step: 0.08
+  feasible_ratio_low: 0.7
+  diversity_low: 0.12
+  improvement_threshold: 0.0001
+
+controller_mode:
+  mode: rule
+  experience_lookback: 5
+
+memory:
+  enabled: true
+  memory_window: 100
+  reward_alpha: 1.0
+  reward_beta: 0.1
+
+logging:
+  output_dir: experiments/logs/small_complex
+  events_file: events.jsonl
+  experiences_file: experiences.jsonl
+  summary_file: summary.json
+  config_snapshot_file: config_snapshot.yaml
+  generation_log_file: generation_metrics.jsonl
+  action_log_file: actions.jsonl

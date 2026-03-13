@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import random
 
-from problems.task_assignment.constraints import capacity_violation, is_capacity_feasible
+from problems.task_assignment.constraints import (
+    capacity_violation,
+    constraint_breakdown,
+    is_capacity_feasible,
+)
 from problems.task_assignment.encoding import random_assignment
 from problems.task_assignment.objectives import compute_objectives, load_imbalance, total_cost
 from problems.task_assignment.repair import repair_overloaded_assignment
@@ -55,3 +59,75 @@ def test_repair_reduces_or_eliminates_capacity_violation() -> None:
 
     assert after < before
     assert is_capacity_feasible(repaired, task_loads, capacities)
+
+
+def test_constraint_breakdown_reports_complex_components() -> None:
+    assignment = [0, 0, 1]
+    task_loads = [1.5, 1.0, 1.0]
+    capacities = [2.0, 2.0]
+    compatibility_matrix = [[0, 1], [1, 1], [1, 1]]
+    task_time_windows = [[0.0, 1.0], [0.0, 2.0], [0.0, 1.0]]
+    resource_time_windows = [[2.0, 3.0], [0.0, 2.0]]
+    resource_stage_levels = [2, 1]
+    stage_transitions = [[0, 2]]
+
+    breakdown = constraint_breakdown(
+        assignment,
+        task_loads=task_loads,
+        capacities=capacities,
+        compatibility_matrix=compatibility_matrix,
+        task_time_windows=task_time_windows,
+        resource_time_windows=resource_time_windows,
+        resource_stage_levels=resource_stage_levels,
+        stage_transitions=stage_transitions,
+    )
+
+    assert breakdown.capacity > 0.0
+    assert breakdown.compatibility > 0.0
+    assert breakdown.time_window > 0.0
+    assert breakdown.stage_transition > 0.0
+    assert breakdown.total == breakdown.capacity + breakdown.compatibility + breakdown.time_window + breakdown.stage_transition
+
+
+def test_repair_handles_complex_constraints() -> None:
+    assignment = [0, 0, 0, 0]
+    task_loads = [1.0, 1.0, 1.0, 1.0]
+    capacities = [1.5, 2.5]
+    compatibility_matrix = [[0, 1], [1, 1], [1, 1], [1, 1]]
+    task_time_windows = [[0.0, 1.0], [0.0, 2.0], [0.0, 2.0], [0.0, 2.0]]
+    resource_time_windows = [[2.0, 3.0], [0.0, 3.0]]
+    resource_stage_levels = [2, 3]
+    stage_transitions = [[0, 1], [0, 2], [0, 3]]
+
+    before = constraint_breakdown(
+        assignment,
+        task_loads=task_loads,
+        capacities=capacities,
+        compatibility_matrix=compatibility_matrix,
+        task_time_windows=task_time_windows,
+        resource_time_windows=resource_time_windows,
+        resource_stage_levels=resource_stage_levels,
+        stage_transitions=stage_transitions,
+    )
+    repaired = repair_overloaded_assignment(
+        assignment,
+        task_loads,
+        capacities,
+        compatibility_matrix=compatibility_matrix,
+        task_time_windows=task_time_windows,
+        resource_time_windows=resource_time_windows,
+        resource_stage_levels=resource_stage_levels,
+        stage_transitions=stage_transitions,
+    )
+    after = constraint_breakdown(
+        repaired,
+        task_loads=task_loads,
+        capacities=capacities,
+        compatibility_matrix=compatibility_matrix,
+        task_time_windows=task_time_windows,
+        resource_time_windows=resource_time_windows,
+        resource_stage_levels=resource_stage_levels,
+        stage_transitions=stage_transitions,
+    )
+
+    assert after.total < before.total
