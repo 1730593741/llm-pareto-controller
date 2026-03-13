@@ -6,6 +6,7 @@ import random
 from dataclasses import dataclass
 from typing import Sequence
 
+from controller.operator_space import OperatorCapabilities, OperatorParams
 from optimizers.nsga2.operators import mutate_assignment, one_point_crossover
 from optimizers.nsga2.population import Individual
 from optimizers.nsga2.selection import (
@@ -28,6 +29,10 @@ class NSGA2Config:
     generations: int = 30
     crossover_prob: float = 0.9
     mutation_prob: float = 0.1
+    repair_prob: float = 1.0
+    eta_c: float | None = None
+    eta_m: float | None = None
+    local_search_prob: float | None = None
     seed: int | None = None
 
 
@@ -52,6 +57,8 @@ class NSGA2Solver:
             raise ValueError("crossover_prob must be in [0, 1]")
         if not 0.0 <= config.mutation_prob <= 1.0:
             raise ValueError("mutation_prob must be in [0, 1]")
+        if not 0.0 <= config.repair_prob <= 1.0:
+            raise ValueError("repair_prob must be in [0, 1]")
         if n_tasks < 0:
             raise ValueError("n_tasks must be >= 0")
         if n_resources <= 0:
@@ -73,14 +80,50 @@ class NSGA2Solver:
         self.config = config
         self.rng = random.Random(config.seed)
 
-    def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
-        """Update operator probabilities at runtime for closed-loop control."""
-        if not 0.0 <= crossover_prob <= 1.0:
+    def get_operator_capabilities(self) -> OperatorCapabilities:
+        """Return runtime-supported parameter dimensions."""
+        return OperatorCapabilities(
+            supports_eta_c=False,
+            supports_eta_m=False,
+            supports_repair_prob=True,
+            supports_local_search_prob=False,
+        )
+
+    def get_operator_params(self) -> OperatorParams:
+        """Return current unified parameter snapshot."""
+        return OperatorParams(
+            mutation_prob=self.config.mutation_prob,
+            crossover_prob=self.config.crossover_prob,
+            eta_c=self.config.eta_c,
+            eta_m=self.config.eta_m,
+            repair_prob=self.config.repair_prob,
+            local_search_prob=self.config.local_search_prob,
+        )
+
+    def set_operator_params(self, params: OperatorParams) -> None:
+        """Update runtime parameters with capability-aware application."""
+        if not 0.0 <= params.crossover_prob <= 1.0:
             raise ValueError("crossover_prob must be in [0, 1]")
-        if not 0.0 <= mutation_prob <= 1.0:
+        if not 0.0 <= params.mutation_prob <= 1.0:
             raise ValueError("mutation_prob must be in [0, 1]")
-        self.config.mutation_prob = mutation_prob
-        self.config.crossover_prob = crossover_prob
+        self.config.mutation_prob = params.mutation_prob
+        self.config.crossover_prob = params.crossover_prob
+
+        capabilities = self.get_operator_capabilities()
+        if capabilities.supports_repair_prob and params.repair_prob is not None:
+            if not 0.0 <= params.repair_prob <= 1.0:
+                raise ValueError("repair_prob must be in [0, 1]")
+            self.config.repair_prob = params.repair_prob
+
+    def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
+        """Backward-compatible API for M4/M5 code paths."""
+        self.set_operator_params(
+            OperatorParams(
+                mutation_prob=mutation_prob,
+                crossover_prob=crossover_prob,
+                repair_prob=self.config.repair_prob,
+            )
+        )
 
     def _evaluate(self, genome: list[int]) -> Individual:
         objectives = compute_objectives(
@@ -133,8 +176,12 @@ class NSGA2Solver:
             child_a = mutate_assignment(child_a, self.n_resources, self.config.mutation_prob, self.rng)
             child_b = mutate_assignment(child_b, self.n_resources, self.config.mutation_prob, self.rng)
 
-            repaired_a = repair_overloaded_assignment(child_a, self.task_loads, self.capacities)
-            repaired_b = repair_overloaded_assignment(child_b, self.task_loads, self.capacities)
+            repaired_a = child_a
+            repaired_b = child_b
+            if self.rng.random() < self.config.repair_prob:
+                repaired_a = repair_overloaded_assignment(child_a, self.task_loads, self.capacities)
+            if self.rng.random() < self.config.repair_prob:
+                repaired_b = repair_overloaded_assignment(child_b, self.task_loads, self.capacities)
 
             offspring.append(self._evaluate(repaired_a))
             if len(offspring) < self.config.population_size:

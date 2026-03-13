@@ -2,8 +2,9 @@
 
 import pytest
 
-from controller.closed_loop import ClosedLoopRunner, RewardConfig, RuleBasedController, RuleControllerConfig
+from controller.closed_loop import ClosedLoopRunner, ControlAction, RewardConfig, RuleBasedController, RuleControllerConfig
 from controller.control_semantics import ControlState
+from controller.operator_space import OperatorCapabilities, OperatorParams
 from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from sensing.pareto_state import ParetoStateSensor
@@ -27,6 +28,39 @@ class InMemoryExperienceLogger:
 
     def log(self, record: object) -> None:
         self.records.append(record)
+
+
+class RequestedAppliedDivergenceController:
+    """Controller that emits divergent requested/applied params for regression tests."""
+
+    control_interval = 1
+
+    def decide(
+        self,
+        *,
+        state,
+        recent_experiences,
+        current_params: OperatorParams,
+        capabilities: OperatorCapabilities,
+    ) -> ControlAction:
+        del recent_experiences, capabilities
+        return ControlAction(
+            generation=state.generation,
+            mutation_prob=current_params.mutation_prob,
+            crossover_prob=current_params.crossover_prob,
+            reason="test",
+            control_state=ControlState.MAINTAIN_BALANCE,
+            requested_params={
+                "mutation_prob": current_params.mutation_prob,
+                "crossover_prob": current_params.crossover_prob,
+                "repair_prob": 1.0,
+            },
+            applied_params={
+                "mutation_prob": current_params.mutation_prob,
+                "crossover_prob": current_params.crossover_prob,
+                "repair_prob": 0.2,
+            },
+        )
 
 
 def _build_solver() -> NSGA2Solver:
@@ -172,3 +206,17 @@ def test_rule_controller_maps_to_diversity_state() -> None:
     )
 
     assert action.control_state == ControlState.INCREASE_DIVERSITY
+
+
+def test_closed_loop_applies_applied_params_not_requested_params() -> None:
+    solver = _build_solver()
+    sensor = ParetoStateSensor()
+    runner = ClosedLoopRunner(
+        solver=solver,
+        sensor=sensor,
+        controller=RequestedAppliedDivergenceController(),
+    )
+
+    runner.run(generations=2)
+
+    assert solver.config.repair_prob == 0.2

@@ -192,8 +192,10 @@ class LLMClient:
         if task == "actuator":
             strategy = payload.get("strategy", {}).get("control_state", "maintain_balance")
             params = payload.get("current_params", {})
+            capabilities = payload.get("capabilities", {})
             mutation = float(params.get("mutation_prob", 0.1))
             crossover = float(params.get("crossover_prob", 0.9))
+            repair_prob = params.get("repair_prob")
 
             if strategy == "increase_diversity":
                 mutation += 0.06
@@ -201,6 +203,8 @@ class LLMClient:
             elif strategy == "increase_feasibility":
                 mutation -= 0.03
                 crossover += 0.04
+                if capabilities.get("supports_repair_prob"):
+                    repair_prob = 1.0 if repair_prob is None else float(repair_prob) + 0.08
             elif strategy == "increase_convergence":
                 mutation -= 0.02
                 crossover += 0.03
@@ -208,11 +212,14 @@ class LLMClient:
                 mutation += 0.0
                 crossover += 0.0
 
-            return {
+            response = {
                 "mutation_prob": mutation,
                 "crossover_prob": crossover,
                 "reason_detail": f"mock::{strategy}",
             }
+            if capabilities.get("supports_repair_prob"):
+                response["repair_prob"] = repair_prob
+            return response
 
         raise ValueError(f"Unsupported llm task: {task}")
 

@@ -20,6 +20,10 @@ optimizer:
   generations: 20
   crossover_prob: 0.9
   mutation_prob: 0.1
+  repair_prob: 1.0
+  eta_c: null
+  eta_m: null
+  local_search_prob: null
   seed: 9
 
 controller:
@@ -28,8 +32,20 @@ controller:
   max_mutation_prob: 0.75
   min_crossover_prob: 0.45
   max_crossover_prob: 0.98
+  min_eta_c: 5.0
+  max_eta_c: 40.0
+  min_eta_m: 5.0
+  max_eta_m: 80.0
+  min_repair_prob: 0.0
+  max_repair_prob: 1.0
+  min_local_search_prob: 0.0
+  max_local_search_prob: 0.2
   mutation_step: 0.05
   crossover_step: 0.04
+  eta_c_step: 2.0
+  eta_m_step: 4.0
+  repair_step: 0.08
+  local_search_step: 0.05
   feasible_ratio_low: 0.6
   diversity_low: 0.12
   improvement_threshold: 0.0001
