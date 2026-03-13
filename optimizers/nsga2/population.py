@@ -16,6 +16,7 @@ class Individual:
     objectives: tuple[float, ...] = field(default_factory=tuple)
     constraint_violation: float = 0.0
     feasible: bool = True
+    constraint_components: dict[str, float] = field(default_factory=dict)
     rank: int = 0
     crowding_distance: float = 0.0
 
@@ -26,6 +27,7 @@ class Individual:
             objectives=tuple(self.objectives),
             constraint_violation=self.constraint_violation,
             feasible=self.feasible,
+            constraint_components=dict(self.constraint_components),
             rank=self.rank,
             crowding_distance=self.crowding_distance,
         )

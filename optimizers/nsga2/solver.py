@@ -15,7 +15,7 @@ from optimizers.nsga2.selection import (
     non_dominated_sort,
     parent_selection,
 )
-from problems.task_assignment.constraints import capacity_violation
+from problems.task_assignment.constraints import constraint_breakdown
 from problems.task_assignment.encoding import random_assignment
 from problems.task_assignment.objectives import compute_objectives
 from problems.task_assignment.repair import repair_overloaded_assignment
@@ -47,6 +47,11 @@ class NSGA2Solver:
         cost_matrix: Sequence[Sequence[float]],
         task_loads: Sequence[float],
         capacities: Sequence[float],
+        task_time_windows: Sequence[Sequence[float]] | None = None,
+        resource_time_windows: Sequence[Sequence[float]] | None = None,
+        compatibility_matrix: Sequence[Sequence[int]] | None = None,
+        resource_stage_levels: Sequence[int] | None = None,
+        stage_transitions: Sequence[Sequence[int]] | None = None,
         config: NSGA2Config,
     ) -> None:
         if config.population_size <= 1:
@@ -77,6 +82,11 @@ class NSGA2Solver:
         self.cost_matrix = cost_matrix
         self.task_loads = task_loads
         self.capacities = capacities
+        self.task_time_windows = task_time_windows
+        self.resource_time_windows = resource_time_windows
+        self.compatibility_matrix = compatibility_matrix
+        self.resource_stage_levels = resource_stage_levels
+        self.stage_transitions = stage_transitions
         self.config = config
         self.rng = random.Random(config.seed)
 
@@ -132,12 +142,28 @@ class NSGA2Solver:
             task_loads=self.task_loads,
             n_resources=self.n_resources,
         )
-        cv = capacity_violation(genome, self.task_loads, self.capacities)
+        breakdown = constraint_breakdown(
+            genome,
+            task_loads=self.task_loads,
+            capacities=self.capacities,
+            compatibility_matrix=self.compatibility_matrix,
+            task_time_windows=self.task_time_windows,
+            resource_time_windows=self.resource_time_windows,
+            resource_stage_levels=self.resource_stage_levels,
+            stage_transitions=self.stage_transitions,
+        )
+        cv = breakdown.total
         return Individual(
             genome=genome,
             objectives=objectives,
             constraint_violation=cv,
             feasible=cv <= 0.0,
+            constraint_components={
+                "capacity": breakdown.capacity,
+                "compatibility": breakdown.compatibility,
+                "time_window": breakdown.time_window,
+                "stage_transition": breakdown.stage_transition,
+            },
         )
 
     def initialize_population(self) -> list[Individual]:
@@ -148,6 +174,11 @@ class NSGA2Solver:
                     random_assignment(self.n_tasks, self.n_resources, self.rng),
                     self.task_loads,
                     self.capacities,
+                    compatibility_matrix=self.compatibility_matrix,
+                    task_time_windows=self.task_time_windows,
+                    resource_time_windows=self.resource_time_windows,
+                    resource_stage_levels=self.resource_stage_levels,
+                    stage_transitions=self.stage_transitions,
                 )
             )
             for _ in range(self.config.population_size)
@@ -179,9 +210,27 @@ class NSGA2Solver:
             repaired_a = child_a
             repaired_b = child_b
             if self.rng.random() < self.config.repair_prob:
-                repaired_a = repair_overloaded_assignment(child_a, self.task_loads, self.capacities)
+                repaired_a = repair_overloaded_assignment(
+                    child_a,
+                    self.task_loads,
+                    self.capacities,
+                    compatibility_matrix=self.compatibility_matrix,
+                    task_time_windows=self.task_time_windows,
+                    resource_time_windows=self.resource_time_windows,
+                    resource_stage_levels=self.resource_stage_levels,
+                    stage_transitions=self.stage_transitions,
+                )
             if self.rng.random() < self.config.repair_prob:
-                repaired_b = repair_overloaded_assignment(child_b, self.task_loads, self.capacities)
+                repaired_b = repair_overloaded_assignment(
+                    child_b,
+                    self.task_loads,
+                    self.capacities,
+                    compatibility_matrix=self.compatibility_matrix,
+                    task_time_windows=self.task_time_windows,
+                    resource_time_windows=self.resource_time_windows,
+                    resource_stage_levels=self.resource_stage_levels,
+                    stage_transitions=self.stage_transitions,
+                )
 
             offspring.append(self._evaluate(repaired_a))
             if len(offspring) < self.config.population_size:

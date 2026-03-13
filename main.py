@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -16,7 +17,7 @@ from eval.reference_front import (
 )
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from controller.closed_loop import (
     ClosedLoopRunner,
@@ -45,6 +46,59 @@ class ProblemConfig(BaseModel):
     cost_matrix: list[list[float]]
     task_loads: list[float]
     capacities: list[float]
+    task_time_windows: list[list[float]] | None = None
+    resource_time_windows: list[list[float]] | None = None
+    compatibility_matrix: list[list[int]] | None = None
+    resource_stage_levels: list[int] | None = None
+    stage_transitions: list[list[int]] | None = None
+
+    @model_validator(mode="after")
+    def _validate_shapes(self) -> "ProblemConfig":
+        if self.task_time_windows is not None:
+            if len(self.task_time_windows) != self.n_tasks:
+                raise ValueError("task_time_windows length must equal n_tasks")
+            for idx, window in enumerate(self.task_time_windows):
+                if len(window) != 2:
+                    raise ValueError(f"task_time_windows[{idx}] must contain [start, end]")
+                if float(window[0]) > float(window[1]):
+                    raise ValueError(f"task_time_windows[{idx}] start must be <= end")
+
+        if self.resource_time_windows is not None:
+            if len(self.resource_time_windows) != self.n_resources:
+                raise ValueError("resource_time_windows length must equal n_resources")
+            for idx, window in enumerate(self.resource_time_windows):
+                if len(window) != 2:
+                    raise ValueError(f"resource_time_windows[{idx}] must contain [start, end]")
+                if float(window[0]) > float(window[1]):
+                    raise ValueError(f"resource_time_windows[{idx}] start must be <= end")
+
+        if (self.task_time_windows is None) ^ (self.resource_time_windows is None):
+            raise ValueError("task_time_windows and resource_time_windows must be configured together")
+
+        if self.compatibility_matrix is not None:
+            if len(self.compatibility_matrix) != self.n_tasks:
+                raise ValueError("compatibility_matrix row count must equal n_tasks")
+            for row in self.compatibility_matrix:
+                if len(row) != self.n_resources:
+                    raise ValueError("compatibility_matrix column count must equal n_resources")
+                if any(value not in (0, 1) for value in row):
+                    raise ValueError("compatibility_matrix values must be 0 or 1")
+
+        if self.resource_stage_levels is not None and len(self.resource_stage_levels) != self.n_resources:
+            raise ValueError("resource_stage_levels length must equal n_resources")
+
+        if self.stage_transitions is not None:
+            for edge in self.stage_transitions:
+                if len(edge) != 2:
+                    raise ValueError("stage_transitions entries must be [predecessor_task, successor_task]")
+                predecessor, successor = edge
+                if not 0 <= predecessor < self.n_tasks or not 0 <= successor < self.n_tasks:
+                    raise ValueError("stage_transitions task indices must be in [0, n_tasks)")
+
+        if (self.resource_stage_levels is None) ^ (self.stage_transitions is None):
+            raise ValueError("resource_stage_levels and stage_transitions must be configured together")
+
+        return self
 
 
 class MemoryConfig(BaseModel):
@@ -157,6 +211,11 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
         cost_matrix=problem.cost_matrix,
         task_loads=problem.task_loads,
         capacities=problem.capacities,
+        task_time_windows=problem.task_time_windows,
+        resource_time_windows=problem.resource_time_windows,
+        compatibility_matrix=problem.compatibility_matrix,
+        resource_stage_levels=problem.resource_stage_levels,
+        stage_transitions=problem.stage_transitions,
         config=optimizer,
     )
 
@@ -445,5 +504,14 @@ def main(config_path: str = "experiments/configs/default.yaml") -> None:
     )
 
 
+def parse_cli_args(argv: list[str] | None = None) -> str:
+    """Parse CLI args and return resolved config path."""
+    parser = argparse.ArgumentParser(description="Run closed-loop NSGA-II experiment")
+    parser.add_argument("config_path", nargs="?", default=None, help="Path to YAML experiment config")
+    parser.add_argument("--config", dest="config_flag", default=None, help="Path to YAML experiment config")
+    args = parser.parse_args(argv)
+    return args.config_flag or args.config_path or "experiments/configs/default.yaml"
+
+
 if __name__ == "__main__":
-    main()
+    main(parse_cli_args())
