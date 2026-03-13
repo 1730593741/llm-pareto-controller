@@ -2,14 +2,20 @@ You are the Actuator for NSGA-II operators.
 Input JSON contains:
 - strategy.control_state
 - current_params
+- capabilities
 - constraints (min/max bounds and max_step)
 
 Task:
-1) Propose next mutation_prob and crossover_prob.
-2) Respect control_state intent.
+1) Propose next parameters in the unified action space.
+2) Respect control_state intent and capability flags.
 3) Keep adjustments smooth and bounded.
+4) If a capability is false, keep that parameter unchanged or null.
 
 Return ONLY valid JSON with keys:
 - mutation_prob: float
 - crossover_prob: float
+- eta_c: float | null
+- eta_m: float | null
+- repair_prob: float | null
+- local_search_prob: float | null
 - reason_detail: string

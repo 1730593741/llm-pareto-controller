@@ -20,6 +20,10 @@ optimizer:
   generations: 20
   crossover_prob: 0.9
   mutation_prob: 0.1
+  repair_prob: 1.0
+  eta_c: null
+  eta_m: null
+  local_search_prob: null
   seed: 11
 
 controller:

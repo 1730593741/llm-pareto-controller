@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Protocol
 
 from controller.control_semantics import ControlState
+from controller.operator_space import OperatorCapabilities, OperatorParams
 from memory.experience_pool import ExperiencePool, ExperienceRecord
 from optimizers.nsga2.solver import NSGA2Solver
 from sensing.pareto_state import ParetoState, ParetoStateSensor
@@ -34,8 +35,20 @@ class RuleControllerConfig:
     max_mutation_prob: float = 0.8
     min_crossover_prob: float = 0.4
     max_crossover_prob: float = 0.98
+    min_eta_c: float = 5.0
+    max_eta_c: float = 40.0
+    min_eta_m: float = 5.0
+    max_eta_m: float = 80.0
+    min_repair_prob: float = 0.0
+    max_repair_prob: float = 1.0
+    min_local_search_prob: float = 0.0
+    max_local_search_prob: float = 1.0
     mutation_step: float = 0.05
     crossover_step: float = 0.04
+    eta_c_step: float = 2.0
+    eta_m_step: float = 4.0
+    repair_step: float = 0.08
+    local_search_step: float = 0.05
     feasible_ratio_low: float = 0.55
     diversity_low: float = 0.08
     improvement_threshold: float = 1e-3
@@ -48,6 +61,10 @@ class RuleControllerConfig:
             raise ValueError("mutation probability bounds must satisfy 0 <= min <= max <= 1")
         if not 0.0 <= self.min_crossover_prob <= self.max_crossover_prob <= 1.0:
             raise ValueError("crossover probability bounds must satisfy 0 <= min <= max <= 1")
+        if not 0.0 <= self.min_repair_prob <= self.max_repair_prob <= 1.0:
+            raise ValueError("repair probability bounds must satisfy 0 <= min <= max <= 1")
+        if not 0.0 <= self.min_local_search_prob <= self.max_local_search_prob <= 1.0:
+            raise ValueError("local-search probability bounds must satisfy 0 <= min <= max <= 1")
 
 
 @dataclass(slots=True)
@@ -59,17 +76,6 @@ class RewardConfig:
 
 
 @dataclass(slots=True)
-class OperatorParams:
-    """Current optimizer operator probabilities."""
-
-    mutation_prob: float
-    crossover_prob: float
-
-    def to_dict(self) -> dict[str, float]:
-        return asdict(self)
-
-
-@dataclass(slots=True)
 class ControlAction:
     """Action chosen by controller for operator probabilities."""
 
@@ -77,6 +83,9 @@ class ControlAction:
     mutation_prob: float
     crossover_prob: float
     reason: str
+    requested_params: dict[str, float | None] | None = None
+    applied_params: dict[str, float] | None = None
+    capabilities: dict[str, bool] | None = None
     control_state: ControlState = ControlState.MAINTAIN_BALANCE
     reason_detail: str = ""
 
@@ -96,6 +105,7 @@ class ControlPolicy(Protocol):
         state: ParetoState,
         recent_experiences: list[ExperienceRecord],
         current_params: OperatorParams,
+        capabilities: OperatorCapabilities,
     ) -> ControlAction:
         """Return the next control action."""
 
@@ -113,6 +123,7 @@ class RuleBasedController:
         state: ParetoState,
         recent_experiences: list[ExperienceRecord] | None = None,
         current_params: OperatorParams | None = None,
+        capabilities: OperatorCapabilities | None = None,
         current_mutation: float | None = None,
         current_crossover: float | None = None,
     ) -> ControlAction:
@@ -127,6 +138,7 @@ class RuleBasedController:
         else:
             msg = "Either current_params or both current_mutation/current_crossover must be provided"
             raise ValueError(msg)
+        capabilities = capabilities or OperatorCapabilities()
         control_state = ControlState.MAINTAIN_BALANCE
         reason_details: list[str] = []
 
@@ -152,6 +164,20 @@ class RuleBasedController:
         mutation = _clip(mutation, self.config.min_mutation_prob, self.config.max_mutation_prob)
         crossover = _clip(crossover, self.config.min_crossover_prob, self.config.max_crossover_prob)
 
+        eta_c = current_params.eta_c if current_params else None
+        eta_m = current_params.eta_m if current_params else None
+        repair_prob = current_params.repair_prob if current_params else None
+        local_search_prob = current_params.local_search_prob if current_params else None
+
+        if capabilities.supports_repair_prob and repair_prob is not None:
+            if control_state == ControlState.INCREASE_FEASIBILITY:
+                repair_prob += self.config.repair_step
+                reason_details.append("raise_repair_for_feasibility")
+            elif control_state == ControlState.INCREASE_DIVERSITY:
+                repair_prob -= self.config.repair_step * 0.5
+                reason_details.append("lower_repair_for_exploration")
+            repair_prob = _clip(repair_prob, self.config.min_repair_prob, self.config.max_repair_prob)
+
         reason = control_state.value
         reason_detail = ";".join(reason_details)
         return ControlAction(
@@ -159,6 +185,23 @@ class RuleBasedController:
             mutation_prob=mutation,
             crossover_prob=crossover,
             reason=reason,
+            requested_params=OperatorParams(
+                mutation_prob=mutation,
+                crossover_prob=crossover,
+                eta_c=eta_c,
+                eta_m=eta_m,
+                repair_prob=repair_prob,
+                local_search_prob=local_search_prob,
+            ).to_dict(),
+            applied_params=OperatorParams(
+                mutation_prob=mutation,
+                crossover_prob=crossover,
+                eta_c=eta_c,
+                eta_m=eta_m,
+                repair_prob=repair_prob,
+                local_search_prob=local_search_prob,
+            ).active_params(capabilities),
+            capabilities=capabilities.to_dict(),
             control_state=control_state,
             reason_detail=reason_detail,
         )
@@ -190,10 +233,16 @@ class LLMChainController:
         state: ParetoState,
         recent_experiences: list[ExperienceRecord],
         current_params: OperatorParams,
+        capabilities: OperatorCapabilities,
     ) -> ControlAction:
         diagnosis = self.analyst.analyze(state=state, recent_experiences=recent_experiences)
         strategy = self.strategist.plan(diagnosis)
-        return self.actuator.act(generation=state.generation, strategy=strategy, current_params=current_params)
+        return self.actuator.act(
+            generation=state.generation,
+            strategy=strategy,
+            current_params=current_params,
+            capabilities=capabilities,
+        )
 
 
 @dataclass(slots=True)
@@ -242,7 +291,7 @@ class ClosedLoopRunner:
             reference_point=reference_point,
         )
         states.append(initial_state)
-        self._log_state(initial_state, self.solver.config.mutation_prob, self.solver.config.crossover_prob)
+        self._log_state(initial_state, self.solver.get_operator_params())
         previous_state = initial_state
 
         for generation in range(1, generations + 1):
@@ -254,7 +303,7 @@ class ClosedLoopRunner:
                 reference_point=reference_point,
             )
             states.append(state)
-            self._log_state(state, self.solver.config.mutation_prob, self.solver.config.crossover_prob)
+            self._log_state(state, self.solver.get_operator_params())
 
             if pending_experience is not None:
                 self._finalize_experience(pending_experience, state)
@@ -265,14 +314,23 @@ class ClosedLoopRunner:
                 action = self.controller.decide(
                     state=state,
                     recent_experiences=recent_experiences,
-                    current_params=OperatorParams(
-                        mutation_prob=self.solver.config.mutation_prob,
-                        crossover_prob=self.solver.config.crossover_prob,
-                    ),
+                    current_params=self.solver.get_operator_params(),
+                    capabilities=self.solver.get_operator_capabilities(),
                 )
-                self.solver.set_operator_probs(
-                    mutation_prob=action.mutation_prob,
-                    crossover_prob=action.crossover_prob,
+                applied_params = action.applied_params or {}
+                self.solver.set_operator_params(
+                    OperatorParams(
+                        mutation_prob=action.mutation_prob,
+                        crossover_prob=action.crossover_prob,
+                        eta_c=float(applied_params["eta_c"]) if "eta_c" in applied_params else None,
+                        eta_m=float(applied_params["eta_m"]) if "eta_m" in applied_params else None,
+                        repair_prob=float(applied_params["repair_prob"]) if "repair_prob" in applied_params else None,
+                        local_search_prob=(
+                            float(applied_params["local_search_prob"])
+                            if "local_search_prob" in applied_params
+                            else None
+                        ),
+                    )
                 )
                 self._log_action(action)
                 pending_experience = _PendingExperience(state=state, action=action)
@@ -287,15 +345,17 @@ class ClosedLoopRunner:
         lookback = getattr(self.controller, "experience_lookback", 5)
         return self.experience_pool.recent(int(lookback))
 
-    def _log_state(self, state: ParetoState, mutation_prob: float, crossover_prob: float) -> None:
+    def _log_state(self, state: ParetoState, params: OperatorParams) -> None:
         if self.logger is None:
             return
         self.logger.log(
             {
                 "event": "state",
                 **state.to_dict(),
-                "mutation_prob": mutation_prob,
-                "crossover_prob": crossover_prob,
+                "mutation_prob": params.mutation_prob,
+                "crossover_prob": params.crossover_prob,
+                "operator_params": params.to_dict(),
+                "operator_capabilities": self.solver.get_operator_capabilities().to_dict(),
             }
         )
 

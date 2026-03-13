@@ -18,6 +18,7 @@ from controller.closed_loop import (
     RuleBasedController,
     RuleControllerConfig,
 )
+from controller.operator_space import OperatorParams
 from infra.llm_client import LLMClient, LLMClientConfig
 from infra.storage import ExperienceJsonlLogger, JsonlLogger
 from llm.actuator import Actuator
@@ -173,6 +174,14 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
         max_mutation_prob=config.controller.max_mutation_prob,
         min_crossover_prob=config.controller.min_crossover_prob,
         max_crossover_prob=config.controller.max_crossover_prob,
+        min_eta_c=config.controller.min_eta_c,
+        max_eta_c=config.controller.max_eta_c,
+        min_eta_m=config.controller.min_eta_m,
+        max_eta_m=config.controller.max_eta_m,
+        min_repair_prob=config.controller.min_repair_prob,
+        max_repair_prob=config.controller.max_repair_prob,
+        min_local_search_prob=config.controller.min_local_search_prob,
+        max_local_search_prob=config.controller.max_local_search_prob,
     )
     return LLMChainController(
         control_interval=config.controller.control_interval,
@@ -346,6 +355,15 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         "final_rank1_ratio": final.rank1_ratio,
         "final_mutation_prob": final_generation_event.get("mutation_prob", runtime.solver.config.mutation_prob),
         "final_crossover_prob": final_generation_event.get("crossover_prob", runtime.solver.config.crossover_prob),
+        "final_operator_params": (
+            final_generation_event.get("operator_params")
+            or runtime.solver.get_operator_params().to_dict()
+        ),
+        "final_effective_params": (
+            OperatorParams(**(final_generation_event.get("operator_params") or runtime.solver.get_operator_params().to_dict()))
+            .active_params(runtime.solver.get_operator_capabilities())
+        ),
+        "operator_capabilities": runtime.solver.get_operator_capabilities().to_dict(),
         "events_path": str(runtime.artifacts.events_path),
         "experiences_path": str(runtime.artifacts.experiences_path) if runtime.artifacts.experiences_path else None,
         "num_actions": len(action_events),

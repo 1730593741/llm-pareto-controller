@@ -130,6 +130,9 @@ logging:
         "controller_mode",
         "run_id",
         "config_fingerprint",
+        "final_operator_params",
+        "final_effective_params",
+        "operator_capabilities",
     ]:
         assert field in summary_payload
 
@@ -143,6 +146,9 @@ logging:
 
     action_count = len(Path(summary_payload["action_log_path"]).read_text(encoding="utf-8").strip().splitlines())
     assert summary_payload["num_actions"] == action_count
+
+    for unsupported in ["eta_c", "eta_m", "local_search_prob"]:
+        assert unsupported not in summary_payload["final_effective_params"]
 
     experience_count = len(Path(summary_payload["experiences_path"]).read_text(encoding="utf-8").strip().splitlines())
     assert summary_payload["num_experiences"] == experience_count
