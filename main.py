@@ -8,6 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from eval.metrics import igd, igd_plus, spacing, spread
+from eval.reference_front import (
+    ReferenceFront,
+    build_intra_run_reference_front,
+    build_true_reference_front,
+)
+
 import yaml
 from pydantic import BaseModel, Field
 
@@ -90,6 +97,13 @@ class ExperimentMetaConfig(BaseModel):
     seed: int | None = None
 
 
+class EvaluationConfig(BaseModel):
+    """Evaluation settings for paper-level metrics and reference-front provenance."""
+
+    reference_front_mode: Literal["auto", "true_front_file", "intra_run"] = "auto"
+    true_pareto_front_path: str | None = None
+
+
 class ExperimentConfig(BaseModel):
     """Top-level experiment config parsed from YAML."""
 
@@ -101,6 +115,7 @@ class ExperimentConfig(BaseModel):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     experiment: ExperimentMetaConfig = Field(default_factory=ExperimentMetaConfig)
+    evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     log_path: str | None = None
 
 
@@ -305,6 +320,28 @@ def _count_control_states(action_events: list[dict[str, Any]]) -> dict[str, int]
     return counts
 
 
+def _load_true_reference_front(path: Path) -> list[tuple[float, ...]]:
+    with path.open("r", encoding="utf-8") as f:
+        payload = json.load(f)
+    if not isinstance(payload, list):
+        raise ValueError("true pareto front file must be a JSON list of points")
+    points: list[tuple[float, ...]] = []
+    for row in payload:
+        if not isinstance(row, list):
+            raise ValueError("each true front point must be a list")
+        points.append(tuple(float(v) for v in row))
+    return points
+
+
+def _resolve_reference_front(config: ExperimentConfig, generation_events: list[dict[str, Any]]) -> ReferenceFront:
+    mode = config.evaluation.reference_front_mode
+    true_path = config.evaluation.true_pareto_front_path
+    if mode in {"auto", "true_front_file"} and true_path:
+        path = Path(true_path)
+        return build_true_reference_front(_load_true_reference_front(path), name=str(path))
+    return build_intra_run_reference_front(generation_events)
+
+
 def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dict[str, Any]:
     """Run one experiment and persist snapshot + summary outputs."""
     config = load_config(config_path)
@@ -337,6 +374,15 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     if runtime.artifacts.experiences_path and runtime.artifacts.experiences_path.exists():
         num_experiences = len(_read_jsonl(runtime.artifacts.experiences_path))
 
+    reference_front = _resolve_reference_front(config, generation_events)
+    final_front_raw = final_generation_event.get("rank1_objectives", final.rank1_objectives)
+    final_front = [tuple(float(v) for v in point) for point in final_front_raw] if isinstance(final_front_raw, list) else []
+
+    final_igd = igd(final_front, reference_front.points)
+    final_igd_plus = igd_plus(final_front, reference_front.points)
+    final_spacing = spacing(final_front)
+    final_spread = spread(final_front, reference_front.points) if final_front and reference_front.points else 0.0
+
     summary = {
         "experiment": config.experiment.model_dump(mode="json"),
         "controller_mode": config.controller_mode.mode,
@@ -353,6 +399,15 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         "mean_hv": hv_auc,
         "final_feasible_ratio": final.feasible_ratio,
         "final_rank1_ratio": final.rank1_ratio,
+        "final_igd": final_igd,
+        "final_igd_plus": final_igd_plus,
+        "final_spacing": final_spacing,
+        "final_spread": final_spread,
+        "reference_front": {
+            "source": reference_front.source,
+            "details": reference_front.details,
+            "num_points": len(reference_front.points),
+        },
         "final_mutation_prob": final_generation_event.get("mutation_prob", runtime.solver.config.mutation_prob),
         "final_crossover_prob": final_generation_event.get("crossover_prob", runtime.solver.config.crossover_prob),
         "final_operator_params": (

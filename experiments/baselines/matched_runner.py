@@ -62,3 +62,24 @@ def run_matched_experiments(
                 config_tmp_path.unlink()
 
     return results
+
+
+def run_matched_seed_sweep(
+    *,
+    output_root: str | Path,
+    seeds: list[int],
+    generations: int,
+) -> dict[int, dict[str, dict[str, Any]]]:
+    """Run matched 3-way comparisons for multiple seeds.
+
+    Artifacts are stored under ``<output_root>/seed_<seed>/<method>/...``.
+    """
+    root = Path(output_root)
+    results: dict[int, dict[str, dict[str, Any]]] = {}
+    for seed in seeds:
+        results[seed] = run_matched_experiments(
+            output_root=root / f"seed_{seed}",
+            seed=seed,
+            generations=generations,
+        )
+    return results

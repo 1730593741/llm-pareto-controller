@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import numpy as np
@@ -28,6 +28,7 @@ class ParetoState:
     d_dec: float
     d_front: float
     stagnation_len: int
+    rank1_objectives: list[tuple[float, ...]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize state to a dictionary for logging."""
@@ -90,6 +91,7 @@ class ParetoStateSensor:
             d_dec=current_d_dec,
             d_front=current_d_front,
             stagnation_len=stagnation_len,
+            rank1_objectives=[tuple(ind.objectives) for ind in rank1_individuals if ind.objectives],
         )
 
 
