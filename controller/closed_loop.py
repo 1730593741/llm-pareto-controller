@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import time
 from typing import Any, Protocol
 
 from controller.control_semantics import ControlState
@@ -88,6 +89,7 @@ class ControlAction:
     capabilities: dict[str, bool] | None = None
     control_state: ControlState = ControlState.MAINTAIN_BALANCE
     reason_detail: str = ""
+    decision_runtime_s: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize action for logs."""
@@ -311,12 +313,14 @@ class ClosedLoopRunner:
 
             if generation % self.controller.control_interval == 0 and generation < generations:
                 recent_experiences = self._recent_experiences()
+                action_started = time.perf_counter()
                 action = self.controller.decide(
                     state=state,
                     recent_experiences=recent_experiences,
                     current_params=self.solver.get_operator_params(),
                     capabilities=self.solver.get_operator_capabilities(),
                 )
+                action.decision_runtime_s = time.perf_counter() - action_started
                 applied_params = action.applied_params or {}
                 self.solver.set_operator_params(
                     OperatorParams(
