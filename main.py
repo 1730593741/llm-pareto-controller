@@ -18,6 +18,8 @@ from eval.reference_front import (
 )
 
 import yaml
+import math
+
 from pydantic import BaseModel, Field, model_validator
 
 from controller.closed_loop import (
@@ -37,7 +39,7 @@ from memory.experience_pool import ExperiencePool
 from experiments.logging import split_event_stream
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from problems.dwta.model import MunitionType as DWTAMunitionType, Target as DWTATarget, Weapon as DWTAWeapon
-from problems.dwta.precompute import build_precomputed_matrices
+from problems.dwta.scenario_builder import build_scenario_matrices
 from sensing.pareto_state import ParetoStateSensor
 
 
@@ -49,6 +51,16 @@ class DWTAMunitionConfig(BaseModel):
     flight_speed: float
     lethality: float
 
+    @model_validator(mode="after")
+    def _validate_non_negative(self) -> "DWTAMunitionConfig":
+        if not math.isfinite(self.max_range) or self.max_range < 0:
+            raise ValueError("munition max_range must be finite and >= 0")
+        if not math.isfinite(self.flight_speed) or self.flight_speed <= 0:
+            raise ValueError("munition flight_speed must be finite and > 0")
+        if not math.isfinite(self.lethality) or self.lethality < 0:
+            raise ValueError("munition lethality must be finite and >= 0")
+        return self
+
 
 class DWTAWeaponConfig(BaseModel):
     """DWTA weapon configuration item."""
@@ -59,6 +71,14 @@ class DWTAWeaponConfig(BaseModel):
     munition_type_id: str
     ammo_capacity: int
 
+    @model_validator(mode="after")
+    def _validate_weapon(self) -> "DWTAWeaponConfig":
+        if not math.isfinite(self.x) or not math.isfinite(self.y):
+            raise ValueError("weapon coordinates must be finite numbers")
+        if self.ammo_capacity < 0:
+            raise ValueError("weapon ammo_capacity must be >= 0")
+        return self
+
 
 class DWTATargetConfig(BaseModel):
     """DWTA target configuration item."""
@@ -68,6 +88,20 @@ class DWTATargetConfig(BaseModel):
     y: float
     required_damage: float
     time_window: list[float]
+
+    @model_validator(mode="after")
+    def _validate_target(self) -> "DWTATargetConfig":
+        if not math.isfinite(self.x) or not math.isfinite(self.y):
+            raise ValueError("target coordinates must be finite numbers")
+        if not math.isfinite(self.required_damage) or self.required_damage < 0:
+            raise ValueError("target required_damage must be finite and >= 0")
+        if len(self.time_window) != 2:
+            raise ValueError("target time_window must contain [start, end]")
+        if not all(math.isfinite(value) for value in self.time_window):
+            raise ValueError("target time_window values must be finite")
+        if float(self.time_window[0]) > float(self.time_window[1]):
+            raise ValueError("target time_window start must be <= end")
+        return self
 
 
 class ProblemConfig(BaseModel):
@@ -86,26 +120,33 @@ class ProblemConfig(BaseModel):
     resource_stage_levels: list[int] | None = None
     stage_transitions: list[list[int]] | None = None
 
+    munition_types: list[DWTAMunitionConfig] | None = None
     munitions: list[DWTAMunitionConfig] | None = None
     weapons: list[DWTAWeaponConfig] | None = None
     targets: list[DWTATargetConfig] | None = None
 
+    @property
+    def resolved_munition_types(self) -> list[DWTAMunitionConfig]:
+        """Return DWTA munition list with backwards compatibility for old key names."""
+        return self.munition_types or self.munitions or []
+
     @model_validator(mode="after")
     def _validate_shapes(self) -> "ProblemConfig":
         if self.problem_type == "dwta":
-            if not self.munitions or not self.weapons or not self.targets:
-                raise ValueError("dwta requires munitions, weapons, and targets")
-            munition_ids = {munition.id for munition in self.munitions}
+            if not self.resolved_munition_types or not self.weapons or not self.targets:
+                raise ValueError("dwta requires munition_types (or munitions), weapons, and targets")
+            munition_ids = {munition.id for munition in self.resolved_munition_types}
+            if len(munition_ids) != len(self.resolved_munition_types):
+                raise ValueError("munition type ids must be unique")
+            weapon_ids = {weapon.id for weapon in self.weapons}
+            if len(weapon_ids) != len(self.weapons):
+                raise ValueError("weapon ids must be unique")
+            target_ids = {target.id for target in self.targets}
+            if len(target_ids) != len(self.targets):
+                raise ValueError("target ids must be unique")
             for weapon in self.weapons:
                 if weapon.munition_type_id not in munition_ids:
                     raise ValueError("weapon.munition_type_id must reference a defined munition")
-                if weapon.ammo_capacity < 0:
-                    raise ValueError("weapon ammo_capacity must be >= 0")
-            for target in self.targets:
-                if len(target.time_window) != 2:
-                    raise ValueError("target time_window must contain [start, end]")
-                if float(target.time_window[0]) > float(target.time_window[1]):
-                    raise ValueError("target time_window start must be <= end")
             return self
 
         if self.task_time_windows is not None:
@@ -262,7 +303,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
 def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
     """Create NSGA-II solver from structured config."""
     if problem.problem_type == "dwta":
-        dwta_data = build_precomputed_matrices(
+        dwta_data = build_scenario_matrices(
             [
                 DWTAMunitionType(
                     id=item.id,
@@ -270,7 +311,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
                     flight_speed=item.flight_speed,
                     lethality=item.lethality,
                 )
-                for item in problem.munitions or []
+                for item in problem.resolved_munition_types
             ],
             [
                 DWTAWeapon(
