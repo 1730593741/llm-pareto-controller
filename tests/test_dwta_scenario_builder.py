@@ -43,6 +43,15 @@ def test_scenario_builder_marks_time_window_mismatch_as_incompatible() -> None:
     assert data.compatibility_matrix == [[0]]
 
 
+def test_scenario_builder_rejects_invalid_munition_reference() -> None:
+    with pytest.raises(ValueError, match="unknown munition_type_id"):
+        build_scenario_matrices(
+            munition_types=[MunitionType(id="m1", max_range=10.0, flight_speed=2.0, lethality=1.0)],
+            weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="missing", ammo_capacity=1)],
+            targets=[Target(id="t1", x=1.0, y=1.0, required_damage=1.0, time_window=(0.0, 10.0))],
+        )
+
+
 def test_problem_config_accepts_new_munition_types_key() -> None:
     cfg = ProblemConfig.model_validate(
         {
