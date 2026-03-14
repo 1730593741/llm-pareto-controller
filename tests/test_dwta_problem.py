@@ -67,7 +67,7 @@ def test_build_solver_supports_dwta_problem_type() -> None:
     problem = ProblemConfig.model_validate(
         {
             "problem_type": "dwta",
-            "munitions": [{"id": "m1", "max_range": 12.0, "flight_speed": 3.0, "lethality": 2.0}],
+            "munition_types": [{"id": "m1", "max_range": 12.0, "flight_speed": 3.0, "lethality": 2.0}],
             "weapons": [
                 {"id": "w1", "x": 0.0, "y": 0.0, "munition_type_id": "m1", "ammo_capacity": 3},
                 {"id": "w2", "x": 2.0, "y": 0.0, "munition_type_id": "m1", "ammo_capacity": 2},

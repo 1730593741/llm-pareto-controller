@@ -4,6 +4,7 @@ from problems.dwta.constraints import DWTAConstraintBreakdown, constraint_breakd
 from problems.dwta.model import DWTABenchmarkData, MunitionType, Target, Weapon
 from problems.dwta.objectives import compute_objectives
 from problems.dwta.precompute import build_precomputed_matrices
+from problems.dwta.scenario_builder import build_scenario_matrices
 from problems.dwta.repair import repair_allocation
 
 __all__ = [
@@ -13,6 +14,7 @@ __all__ = [
     "Target",
     "Weapon",
     "build_precomputed_matrices",
+    "build_scenario_matrices",
     "compute_objectives",
     "constraint_breakdown",
     "repair_allocation",
