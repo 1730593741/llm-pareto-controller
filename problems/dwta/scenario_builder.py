@@ -29,6 +29,8 @@ def build_scenario_matrices(
     lethality_matrix: list[list[float]] = []
 
     for weapon in weapons:
+        if weapon.munition_type_id not in munition_by_id:
+            raise ValueError(f"weapon '{weapon.id}' references unknown munition_type_id '{weapon.munition_type_id}'")
         munition = munition_by_id[weapon.munition_type_id]
         compat_row: list[int] = []
         lethality_row: list[float] = []
@@ -53,4 +55,3 @@ def build_scenario_matrices(
         lethality_matrix=lethality_matrix,
         required_damage=[target.required_damage for target in targets],
     )
-
