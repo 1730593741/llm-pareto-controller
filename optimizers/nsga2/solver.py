@@ -1,4 +1,4 @@
-"""Minimal runnable NSGA-II solver for the task-assignment problem."""
+"""Minimal runnable NSGA-II solver for task-assignment and DWTA problems."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from controller.operator_space import OperatorCapabilities, OperatorParams
-from optimizers.nsga2.operators import mutate_assignment, one_point_crossover
+from optimizers.nsga2.operators import mutate_assignment, mutate_bounded_integers, one_point_crossover
 from optimizers.nsga2.population import Individual
 from optimizers.nsga2.selection import (
     assign_crowding_distance,
@@ -15,6 +15,11 @@ from optimizers.nsga2.selection import (
     non_dominated_sort,
     parent_selection,
 )
+from problems.dwta.constraints import constraint_breakdown as dwta_constraint_breakdown
+from problems.dwta.encoding import random_allocation
+from problems.dwta.model import DWTABenchmarkData
+from problems.dwta.objectives import compute_objectives as compute_dwta_objectives
+from problems.dwta.repair import repair_allocation
 from problems.task_assignment.constraints import constraint_breakdown
 from problems.task_assignment.encoding import random_assignment
 from problems.task_assignment.objectives import compute_objectives
@@ -37,7 +42,7 @@ class NSGA2Config:
 
 
 class NSGA2Solver:
-    """NSGA-II solver with injectable problem arrays for task assignment."""
+    """NSGA-II solver with injectable problem arrays for task assignment or DWTA."""
 
     def __init__(
         self,
@@ -53,6 +58,7 @@ class NSGA2Solver:
         resource_stage_levels: Sequence[int] | None = None,
         stage_transitions: Sequence[Sequence[int]] | None = None,
         config: NSGA2Config,
+        dwta_data: DWTABenchmarkData | None = None,
     ) -> None:
         if config.population_size <= 1:
             raise ValueError("population_size must be > 1")
@@ -64,6 +70,30 @@ class NSGA2Solver:
             raise ValueError("mutation_prob must be in [0, 1]")
         if not 0.0 <= config.repair_prob <= 1.0:
             raise ValueError("repair_prob must be in [0, 1]")
+
+        self.config = config
+        self.rng = random.Random(config.seed)
+        self.dwta_data = dwta_data
+
+        if self.dwta_data is not None:
+            self.problem_mode = "dwta"
+            self.n_tasks = self.dwta_data.n_weapons * self.dwta_data.n_targets
+            self.n_resources = 1
+            self.cost_matrix = [[0.0] for _ in range(self.n_tasks)]
+            self.task_loads = [0.0] * self.n_tasks
+            self.capacities = [float(value) for value in self.dwta_data.ammo_capacities]
+            self.task_time_windows = None
+            self.resource_time_windows = None
+            self.compatibility_matrix = None
+            self.resource_stage_levels = None
+            self.stage_transitions = None
+            self._dwta_upper_bounds = [
+                int(self.dwta_data.ammo_capacities[weapon_idx])
+                for weapon_idx in range(self.dwta_data.n_weapons)
+                for _ in range(self.dwta_data.n_targets)
+            ]
+            return
+
         if n_tasks < 0:
             raise ValueError("n_tasks must be >= 0")
         if n_resources <= 0:
@@ -77,6 +107,7 @@ class NSGA2Solver:
         if any(len(row) != n_resources for row in cost_matrix):
             raise ValueError("each cost_matrix row length must equal n_resources")
 
+        self.problem_mode = "task_assignment"
         self.n_tasks = n_tasks
         self.n_resources = n_resources
         self.cost_matrix = cost_matrix
@@ -87,8 +118,6 @@ class NSGA2Solver:
         self.compatibility_matrix = compatibility_matrix
         self.resource_stage_levels = resource_stage_levels
         self.stage_transitions = stage_transitions
-        self.config = config
-        self.rng = random.Random(config.seed)
 
     def get_operator_capabilities(self) -> OperatorCapabilities:
         """Return runtime-supported parameter dimensions."""
@@ -136,6 +165,34 @@ class NSGA2Solver:
         )
 
     def _evaluate(self, genome: list[int]) -> Individual:
+        if self.dwta_data is not None:
+            objectives = compute_dwta_objectives(
+                genome,
+                n_weapons=self.dwta_data.n_weapons,
+                n_targets=self.dwta_data.n_targets,
+                required_damage=self.dwta_data.required_damage,
+                lethality_matrix=self.dwta_data.lethality_matrix,
+            )
+            breakdown = dwta_constraint_breakdown(
+                genome,
+                ammo_capacities=self.dwta_data.ammo_capacities,
+                compatibility_matrix=self.dwta_data.compatibility_matrix,
+                n_targets=self.dwta_data.n_targets,
+            )
+            cv = breakdown.total
+            return Individual(
+                genome=genome,
+                objectives=objectives,
+                constraint_violation=cv,
+                feasible=cv <= 0.0,
+                constraint_components={
+                    "capacity": breakdown.capacity,
+                    "compatibility": breakdown.compatibility,
+                    "time_window": 0.0,
+                    "stage_transition": 0.0,
+                },
+            )
+
         objectives = compute_objectives(
             assignment=genome,
             cost_matrix=self.cost_matrix,
@@ -168,6 +225,24 @@ class NSGA2Solver:
 
     def initialize_population(self) -> list[Individual]:
         """Create an initial repaired population for iterative closed-loop use."""
+        if self.dwta_data is not None:
+            return [
+                self._evaluate(
+                    repair_allocation(
+                        random_allocation(
+                            self.dwta_data.ammo_capacities,
+                            self.dwta_data.compatibility_matrix,
+                            self.rng,
+                        ),
+                        ammo_capacities=self.dwta_data.ammo_capacities,
+                        compatibility_matrix=self.dwta_data.compatibility_matrix,
+                        n_targets=self.dwta_data.n_targets,
+                        rng=self.rng,
+                    )
+                )
+                for _ in range(self.config.population_size)
+            ]
+
         return [
             self._evaluate(
                 repair_overloaded_assignment(
@@ -204,33 +279,55 @@ class NSGA2Solver:
                 crossover_prob=self.config.crossover_prob,
                 rng=self.rng,
             )
-            child_a = mutate_assignment(child_a, self.n_resources, self.config.mutation_prob, self.rng)
-            child_b = mutate_assignment(child_b, self.n_resources, self.config.mutation_prob, self.rng)
+            if self.dwta_data is not None:
+                child_a = mutate_bounded_integers(child_a, self._dwta_upper_bounds, self.config.mutation_prob, self.rng)
+                child_b = mutate_bounded_integers(child_b, self._dwta_upper_bounds, self.config.mutation_prob, self.rng)
+            else:
+                child_a = mutate_assignment(child_a, self.n_resources, self.config.mutation_prob, self.rng)
+                child_b = mutate_assignment(child_b, self.n_resources, self.config.mutation_prob, self.rng)
 
             repaired_a = child_a
             repaired_b = child_b
             if self.rng.random() < self.config.repair_prob:
-                repaired_a = repair_overloaded_assignment(
-                    child_a,
-                    self.task_loads,
-                    self.capacities,
-                    compatibility_matrix=self.compatibility_matrix,
-                    task_time_windows=self.task_time_windows,
-                    resource_time_windows=self.resource_time_windows,
-                    resource_stage_levels=self.resource_stage_levels,
-                    stage_transitions=self.stage_transitions,
-                )
+                if self.dwta_data is not None:
+                    repaired_a = repair_allocation(
+                        child_a,
+                        ammo_capacities=self.dwta_data.ammo_capacities,
+                        compatibility_matrix=self.dwta_data.compatibility_matrix,
+                        n_targets=self.dwta_data.n_targets,
+                        rng=self.rng,
+                    )
+                else:
+                    repaired_a = repair_overloaded_assignment(
+                        child_a,
+                        self.task_loads,
+                        self.capacities,
+                        compatibility_matrix=self.compatibility_matrix,
+                        task_time_windows=self.task_time_windows,
+                        resource_time_windows=self.resource_time_windows,
+                        resource_stage_levels=self.resource_stage_levels,
+                        stage_transitions=self.stage_transitions,
+                    )
             if self.rng.random() < self.config.repair_prob:
-                repaired_b = repair_overloaded_assignment(
-                    child_b,
-                    self.task_loads,
-                    self.capacities,
-                    compatibility_matrix=self.compatibility_matrix,
-                    task_time_windows=self.task_time_windows,
-                    resource_time_windows=self.resource_time_windows,
-                    resource_stage_levels=self.resource_stage_levels,
-                    stage_transitions=self.stage_transitions,
-                )
+                if self.dwta_data is not None:
+                    repaired_b = repair_allocation(
+                        child_b,
+                        ammo_capacities=self.dwta_data.ammo_capacities,
+                        compatibility_matrix=self.dwta_data.compatibility_matrix,
+                        n_targets=self.dwta_data.n_targets,
+                        rng=self.rng,
+                    )
+                else:
+                    repaired_b = repair_overloaded_assignment(
+                        child_b,
+                        self.task_loads,
+                        self.capacities,
+                        compatibility_matrix=self.compatibility_matrix,
+                        task_time_windows=self.task_time_windows,
+                        resource_time_windows=self.resource_time_windows,
+                        resource_stage_levels=self.resource_stage_levels,
+                        stage_transitions=self.stage_transitions,
+                    )
 
             offspring.append(self._evaluate(repaired_a))
             if len(offspring) < self.config.population_size:
