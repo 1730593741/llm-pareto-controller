@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, to_matrix
+
 
 @dataclass(frozen=True, slots=True)
 class DWTAConstraintBreakdown:
@@ -18,30 +20,38 @@ class DWTAConstraintBreakdown:
         return self.capacity + self.compatibility
 
 
-def capacity_violation(genome: list[int], ammo_capacities: list[int], n_targets: int) -> float:
+def capacity_violation(
+    allocation: DWTAAllocationGenome | DWTAAllocationMatrix,
+    ammo_capacities: list[int],
+    n_targets: int,
+) -> float:
     """Return total capacity overflow across all weapons."""
+    matrix = to_matrix(allocation, n_weapons=len(ammo_capacities), n_targets=n_targets)
     violation = 0.0
     for weapon_idx, ammo_capacity in enumerate(ammo_capacities):
-        row_start = weapon_idx * n_targets
-        used = sum(int(value) for value in genome[row_start : row_start + n_targets])
+        used = sum(matrix[weapon_idx])
         violation += max(0.0, float(used - ammo_capacity))
     return float(violation)
 
 
-def compatibility_violation(genome: list[int], compatibility_matrix: list[list[int]], n_targets: int) -> float:
-    """Return number of incompatible shot assignments."""
+def compatibility_violation(
+    allocation: DWTAAllocationGenome | DWTAAllocationMatrix,
+    compatibility_matrix: list[list[int]],
+    n_targets: int,
+) -> float:
+    """Return total incompatible shot assignments."""
+    matrix = to_matrix(allocation, n_weapons=len(compatibility_matrix), n_targets=n_targets)
     violation = 0.0
     for weapon_idx, row in enumerate(compatibility_matrix):
-        row_start = weapon_idx * n_targets
         for target_idx, flag in enumerate(row):
-            shots = int(genome[row_start + target_idx])
+            shots = matrix[weapon_idx][target_idx]
             if int(flag) == 0 and shots > 0:
                 violation += float(shots)
     return float(violation)
 
 
 def constraint_breakdown(
-    genome: list[int],
+    allocation: DWTAAllocationGenome | DWTAAllocationMatrix,
     *,
     ammo_capacities: list[int],
     compatibility_matrix: list[list[int]],
@@ -49,6 +59,6 @@ def constraint_breakdown(
 ) -> DWTAConstraintBreakdown:
     """Return DWTA violation decomposition."""
     return DWTAConstraintBreakdown(
-        capacity=capacity_violation(genome, ammo_capacities, n_targets),
-        compatibility=compatibility_violation(genome, compatibility_matrix, n_targets),
+        capacity=capacity_violation(allocation, ammo_capacities, n_targets),
+        compatibility=compatibility_violation(allocation, compatibility_matrix, n_targets),
     )
