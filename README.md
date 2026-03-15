@@ -1,20 +1,30 @@
 # LLM-Pareto-Controller
 
-一个面向研究实验的 Python 项目：在多目标任务分配问题上，用 NSGA-II 做底层搜索，用规则/LLM 控制链做闭环调参，并支持实验对照与消融。
+一个面向研究实验的 Python 项目：在多目标任务分配问题上，以 NSGA-II 进行底层搜索，并通过规则控制器或 LLM 控制链做在线调参，形成闭环优化。
 
-当前已支持两类场景：
-- 通用 task-assignment（任务-资源分配）
-- 动态武器-目标分配 DWTA（含时空耦合约束、射程兼容性与弹药容量限制）
+## 项目目标
 
-## 当前状态（截至 M7）
+- 用 NSGA-II 作为可复现的多目标优化基线。
+- 用 Pareto state 感知搜索状态（可行率、多样性、改进趋势等）。
+- 用 `rule` / `mock_llm` / `real_llm` 控制模式驱动参数自适应。
+- 支持经验池、对照实验、消融实验与结果导出。
 
-已完成能力：
-- M4：可运行的规则闭环（state/action 日志）。
-- M5：可选经验池（state -> action -> reward -> next_state）。
-- M6：`rule` / `mock_llm` / `real_llm` 三种控制模式，LLM 链路为 Analyst -> Strategist -> Actuator。
-- M7：最小实验系统（配置化运行、baseline、ablation 开关、配置快照与运行摘要输出）。
+## 当前能力（MVP → 工程化）
 
-## 安装
+当前仓库可直接运行以下能力：
+
+- 闭环优化主流程（`main.py`）
+- 两类问题场景：
+  - `task_assignment`（通用任务-资源分配）
+  - `dwta`（动态武器-目标分配，支持实体输入或预计算矩阵）
+- 三种控制模式：`rule` / `mock_llm` / `real_llm`
+- 经验池日志链路：`state -> action -> reward -> next_state`
+- 基线与矩阵实验：baseline、matched、ablation
+- 指标与导出：HV、IGD、IGD+、Spread、Spacing 及聚合表导出
+
+## 环境安装
+
+> Python 版本：**3.11**
 
 ```bash
 python3.11 -m venv .venv
@@ -23,15 +33,15 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-## 运行方式
+## 快速开始
 
-### 1) 默认闭环实验
+### 1) 默认运行
 
 ```bash
 python main.py
 ```
 
-默认读取：`experiments/configs/default.yaml`。
+默认会读取：`experiments/configs/default.yaml`。
 
 ### 2) 指定配置运行
 
@@ -41,7 +51,7 @@ python -c "from main import main; main('experiments/configs/mock_llm.yaml')"
 python -c "from main import main; main('experiments/configs/real_llm.yaml')"
 ```
 
-### 2.1) 运行 DWTA 场景（推荐先 smoke）
+### 3) DWTA 场景（建议先 smoke）
 
 ```bash
 python -c "from main import main; main('experiments/configs/dwta_small_smoke.yaml')"
@@ -49,7 +59,9 @@ python -c "from main import main; main('experiments/configs/dwta_small.yaml')"
 python -c "from main import main; main('experiments/configs/dwta_medium.yaml')"
 ```
 
-### 3) baseline 运行
+## Baseline 与实验矩阵
+
+### 1) Baseline Runner
 
 ```bash
 python -c "from experiments.baselines.runner import run_baseline_nsga2; print(run_baseline_nsga2())"
@@ -57,66 +69,76 @@ python -c "from experiments.baselines.runner import run_rule_control_baseline; p
 python -c "from experiments.baselines.runner import run_no_memory_baseline; print(run_no_memory_baseline())"
 ```
 
-## 配置说明（`experiments/configs/*.yaml`）
+### 2) Matrix Runner
 
-配置统一按以下分层：
-- `problem`: 问题定义。
-  - `task_assignment`：使用 `n_tasks/n_resources/cost_matrix/task_loads/capacities`。
-  - `dwta`：可选两种输入方式：
-    1) 实体输入（`munition_types + weapons + targets`），运行时预计算 `compatibility_matrix` 与 `lethality_matrix`；
-    2) 预计算输入（`precomputed`），直接给出 `ammo_capacities/compatibility_matrix/lethality_matrix/required_damage`。
-- `optimizer`: NSGA-II 参数（种群、代数、交叉/变异概率、随机种子）。
-- `controller`: 控制器参数（控制周期、阈值、参数边界、步长）。
-- `controller_mode`: 运行模式（`rule` / `mock_llm` / `real_llm`）。
-- `memory`: 经验池开关与 reward 参数。
-- `logging`: 输出目录与文件命名。
-- `llm`: LLM 运行时配置（provider/model/env key 等）。
-- `experiment`: 实验元信息（名称、seed）。
+```bash
+python -m experiments.run_matrix --preset toy --output-root experiments/runs/toy
+python -m experiments.run_matrix --preset pilot --skip-ablation --output-root experiments/runs/pilot_matched
+python -m experiments.run_matrix --preset paper --output-root experiments/runs/paper
+```
 
-## 实验输出
+### 3) 结果导出
 
-每次运行会在 `logging.output_dir` 下至少生成：
-- `config_snapshot.yaml`: 运行配置快照（含来源 config 路径）。
-- `events.jsonl`: 统一事件流（state/action）。
-- `generation_metrics.jsonl`: 逐代状态日志。
-- `actions.jsonl`: 动作日志。
-- `experiences.jsonl`（启用 memory 时）: 经验记录。
-- `summary.json`: 本次运行摘要（最终 hv、参数、日志路径等）。
+```bash
+python -m experiments.export_results --runs-root experiments/runs/paper --output-dir experiments/exports/paper
+```
+
+## 配置结构（`experiments/configs/*.yaml`）
+
+主配置按模块分层：
+
+- `experiment`: 实验名称、seed、方法标识
+- `problem`: 问题定义
+  - `task_assignment`: `n_tasks/n_resources/cost_matrix/task_loads/capacities`
+  - `dwta`:
+    - 实体输入：`munition_types + weapons + targets`（运行时自动预计算）
+    - 预计算输入：`precomputed`（直接加载矩阵）
+- `optimizer`: NSGA-II 参数
+- `controller`: 闭环调参阈值、步长、边界
+- `controller_mode`: `rule` / `mock_llm` / `real_llm`
+- `memory`: 经验池开关与 reward 参数
+- `logging`: 输出目录与日志命名
+- `llm`: 真实 LLM 连接参数（provider/model/env key 等）
+
+## 运行输出
+
+每次运行会在 `logging.output_dir` 下写出：
+
+- `config_snapshot.yaml`：配置快照（含来源路径）
+- `events.jsonl`：统一事件流（state/action）
+- `generation_metrics.jsonl`：逐代状态日志
+- `actions.jsonl`：控制动作日志
+- `experiences.jsonl`：经验日志（memory 启用时）
+- `summary.json`：本次运行摘要（最终指标、参数、日志路径）
 
 ## 消融开关
 
-`experiments/ablations/switches.py` 当前支持：
+`experiments/ablations/switches.py` 目前支持：
+
 - `no_memory`
 - `no_state_metric_x`
 - `fixed_control_interval`
 - `no_llm_chain`
 
-可用于派生临时配置做对照实验。
+## Real LLM 说明
 
+`real_llm` 模式使用环境变量读取密钥，默认不在代码中硬编码：
 
-## 论文实验链路
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`（可选）
 
-完整实验矩阵、消融矩阵、结果导出与命令清单见：`EXPERIMENTS.md`。
+建议流程：先跑 `rule` / `mock_llm`，确认闭环稳定后再切换 `real_llm`。
 
-## 测试
+## 测试与质量检查
 
 ```bash
 pytest -q
+ruff check .
 ```
 
-M7 相关重点测试：
-- `tests/test_main_config_modes.py`
-- `tests/test_baseline_runner.py`
+## 文档索引
 
-
-## DWTA Smoke 预期输出
-
-运行 `dwta_small_smoke.yaml` 后，`logging.output_dir` 下会生成：
-- `events.jsonl`（包含 state/action 事件流）
-- `generation_metrics.jsonl`（逐代 hv、feasible_ratio 等）
-- `actions.jsonl`（控制动作与四元状态）
-- `experiences.jsonl`（启用 memory 时）
-- `summary.json`（最终指标与日志路径）
-
-常见日志信号：
-- 当 `feasible_ratio` 偏低时，控制器通常会进入 `increase_feasibility`，对应 DWTA 中弹药超配或时空/射程兼容性违约修复。
+- 研究规格：`SPEC.md`
+- 任务里程碑：`TASKS.md`
+- 技术栈说明：`TECH_STACK.md`
+- 实验流水线说明：`EXPERIMENTS.md`
