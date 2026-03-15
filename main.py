@@ -38,7 +38,7 @@ from llm.strategist import Strategist
 from memory.experience_pool import ExperiencePool
 from experiments.logging import split_event_stream
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
-from problems.dwta.model import MunitionType as DWTAMunitionType, Target as DWTATarget, Weapon as DWTAWeapon
+from problems.dwta.model import DWTABenchmarkData, MunitionType as DWTAMunitionType, Target as DWTATarget, Weapon as DWTAWeapon
 from problems.dwta.scenario_builder import build_scenario_matrices
 from sensing.pareto_state import ParetoStateSensor
 
@@ -104,6 +104,45 @@ class DWTATargetConfig(BaseModel):
         return self
 
 
+class DWTAPrecomputedConfig(BaseModel):
+    """DWTA precomputed matrix payload for direct runtime loading."""
+
+    ammo_capacities: list[int]
+    compatibility_matrix: list[list[int]]
+    lethality_matrix: list[list[float]]
+    required_damage: list[float]
+
+    @model_validator(mode="after")
+    def _validate_shapes(self) -> "DWTAPrecomputedConfig":
+        n_weapons = len(self.ammo_capacities)
+        if n_weapons == 0:
+            raise ValueError("dwta.precomputed.ammo_capacities must not be empty")
+        if len(self.compatibility_matrix) != n_weapons:
+            raise ValueError("dwta.precomputed.compatibility_matrix row count must equal ammo_capacities length")
+        if len(self.lethality_matrix) != n_weapons:
+            raise ValueError("dwta.precomputed.lethality_matrix row count must equal ammo_capacities length")
+
+        n_targets = len(self.required_damage)
+        if n_targets == 0:
+            raise ValueError("dwta.precomputed.required_damage must not be empty")
+
+        for row in self.compatibility_matrix:
+            if len(row) != n_targets:
+                raise ValueError("dwta.precomputed.compatibility_matrix column count must equal required_damage length")
+            if any(value not in (0, 1) for value in row):
+                raise ValueError("dwta.precomputed.compatibility_matrix values must be 0 or 1")
+        for row in self.lethality_matrix:
+            if len(row) != n_targets:
+                raise ValueError("dwta.precomputed.lethality_matrix column count must equal required_damage length")
+            if any((not math.isfinite(value)) or value < 0 for value in row):
+                raise ValueError("dwta.precomputed.lethality_matrix values must be finite and >= 0")
+        if any(capacity < 0 for capacity in self.ammo_capacities):
+            raise ValueError("dwta.precomputed.ammo_capacities values must be >= 0")
+        if any((not math.isfinite(damage)) or damage < 0 for damage in self.required_damage):
+            raise ValueError("dwta.precomputed.required_damage values must be finite and >= 0")
+        return self
+
+
 class ProblemConfig(BaseModel):
     """Problem specification for task-assignment and DWTA benchmarks."""
 
@@ -124,6 +163,7 @@ class ProblemConfig(BaseModel):
     munitions: list[DWTAMunitionConfig] | None = None
     weapons: list[DWTAWeaponConfig] | None = None
     targets: list[DWTATargetConfig] | None = None
+    precomputed: DWTAPrecomputedConfig | None = None
 
     @property
     def resolved_munition_types(self) -> list[DWTAMunitionConfig]:
@@ -133,8 +173,10 @@ class ProblemConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_shapes(self) -> "ProblemConfig":
         if self.problem_type == "dwta":
+            if self.precomputed is not None:
+                return self
             if not self.resolved_munition_types or not self.weapons or not self.targets:
-                raise ValueError("dwta requires munition_types (or munitions), weapons, and targets")
+                raise ValueError("dwta requires either precomputed matrices or munition_types (or munitions) + weapons + targets")
             munition_ids = {munition.id for munition in self.resolved_munition_types}
             if len(munition_ids) != len(self.resolved_munition_types):
                 raise ValueError("munition type ids must be unique")
@@ -303,37 +345,47 @@ def load_config(path: str | Path) -> ExperimentConfig:
 def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
     """Create NSGA-II solver from structured config."""
     if problem.problem_type == "dwta":
-        dwta_data = build_scenario_matrices(
-            [
-                DWTAMunitionType(
-                    id=item.id,
-                    max_range=item.max_range,
-                    flight_speed=item.flight_speed,
-                    lethality=item.lethality,
-                )
-                for item in problem.resolved_munition_types
-            ],
-            [
-                DWTAWeapon(
-                    id=item.id,
-                    x=item.x,
-                    y=item.y,
-                    munition_type_id=item.munition_type_id,
-                    ammo_capacity=item.ammo_capacity,
-                )
-                for item in problem.weapons or []
-            ],
-            [
-                DWTATarget(
-                    id=item.id,
-                    x=item.x,
-                    y=item.y,
-                    required_damage=item.required_damage,
-                    time_window=(float(item.time_window[0]), float(item.time_window[1])),
-                )
-                for item in problem.targets or []
-            ],
-        )
+        if problem.precomputed is not None:
+            dwta_data = DWTABenchmarkData(
+                n_weapons=len(problem.precomputed.ammo_capacities),
+                n_targets=len(problem.precomputed.required_damage),
+                ammo_capacities=problem.precomputed.ammo_capacities,
+                compatibility_matrix=problem.precomputed.compatibility_matrix,
+                lethality_matrix=problem.precomputed.lethality_matrix,
+                required_damage=problem.precomputed.required_damage,
+            )
+        else:
+            dwta_data = build_scenario_matrices(
+                [
+                    DWTAMunitionType(
+                        id=item.id,
+                        max_range=item.max_range,
+                        flight_speed=item.flight_speed,
+                        lethality=item.lethality,
+                    )
+                    for item in problem.resolved_munition_types
+                ],
+                [
+                    DWTAWeapon(
+                        id=item.id,
+                        x=item.x,
+                        y=item.y,
+                        munition_type_id=item.munition_type_id,
+                        ammo_capacity=item.ammo_capacity,
+                    )
+                    for item in problem.weapons or []
+                ],
+                [
+                    DWTATarget(
+                        id=item.id,
+                        x=item.x,
+                        y=item.y,
+                        required_damage=item.required_damage,
+                        time_window=(float(item.time_window[0]), float(item.time_window[1])),
+                    )
+                    for item in problem.targets or []
+                ],
+            )
         return NSGA2Solver(
             n_tasks=0,
             n_resources=1,

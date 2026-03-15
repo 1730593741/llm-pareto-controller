@@ -92,3 +92,11 @@ controller:
 def test_parse_cli_args_supports_config_flag_and_positional() -> None:
     assert parse_cli_args(["--config", "experiments/configs/small_complex_smoke.yaml"]) == "experiments/configs/small_complex_smoke.yaml"
     assert parse_cli_args(["experiments/configs/default.yaml"]) == "experiments/configs/default.yaml"
+
+
+def test_load_dwta_precomputed_config() -> None:
+    cfg = load_config("experiments/configs/dwta_medium.yaml")
+
+    assert cfg.problem.problem_type == "dwta"
+    assert cfg.problem.precomputed is not None
+    assert cfg.problem.precomputed.ammo_capacities == [4, 4, 3, 3]
