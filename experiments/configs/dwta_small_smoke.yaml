@@ -1,58 +1,58 @@
 experiment:
-  name: dwta_small
-  seed: 42
+  name: dwta_small_smoke
+  seed: 202
   method: llm_pareto_controller
-  benchmark: dwta_small
+  benchmark: dwta_small_smoke
 
 problem:
   problem_type: dwta
   munition_types:
     - id: m_he
-      max_range: 12.0
+      max_range: 11.0
       flight_speed: 3.0
       lethality: 2.0
     - id: m_ap
-      max_range: 9.0
-      flight_speed: 4.0
-      lethality: 1.5
+      max_range: 8.0
+      flight_speed: 3.5
+      lethality: 1.6
   weapons:
     - id: w1
       x: 0.0
       y: 0.0
       munition_type_id: m_he
-      ammo_capacity: 4
+      ammo_capacity: 3
     - id: w2
       x: 2.0
-      y: 1.0
+      y: 0.5
       munition_type_id: m_ap
-      ammo_capacity: 3
+      ammo_capacity: 2
   targets:
     - id: t1
       x: 3.0
-      y: 1.0
-      required_damage: 4.0
-      time_window: [0.0, 5.0]
-    - id: t2
-      x: 6.5
       y: 0.5
-      required_damage: 3.5
+      required_damage: 3.0
       time_window: [0.0, 4.0]
-    - id: t3
-      x: 10.5
+    - id: t2
+      x: 6.0
       y: 1.0
       required_damage: 2.5
-      time_window: [0.0, 4.5]
+      time_window: [0.0, 4.0]
+    - id: t3
+      x: 8.0
+      y: 0.0
+      required_damage: 2.0
+      time_window: [0.0, 4.0]
 
 optimizer:
-  population_size: 24
-  generations: 20
+  population_size: 16
+  generations: 6
   crossover_prob: 0.9
-  mutation_prob: 0.12
+  mutation_prob: 0.15
   repair_prob: 1.0
-  eta_c: 18.0
-  eta_m: 35.0
-  local_search_prob: 0.08
-  seed: 42
+  eta_c: 15.0
+  eta_m: 30.0
+  local_search_prob: 0.05
+  seed: 202
 
 controller:
   control_interval: 1
@@ -63,7 +63,7 @@ controller:
   mutation_step: 0.05
   crossover_step: 0.04
   feasible_ratio_low: 0.6
-  diversity_low: 0.15
+  diversity_low: 0.12
   improvement_threshold: 0.0001
 
 controller_mode:
@@ -71,7 +71,7 @@ controller_mode:
 
 memory:
   enabled: true
-  memory_window: 100
+  memory_window: 40
 
 logging:
-  output_dir: experiments/logs/dwta_small
+  output_dir: experiments/logs/dwta_small_smoke

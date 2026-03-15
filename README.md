@@ -2,6 +2,10 @@
 
 一个面向研究实验的 Python 项目：在多目标任务分配问题上，用 NSGA-II 做底层搜索，用规则/LLM 控制链做闭环调参，并支持实验对照与消融。
 
+当前已支持两类场景：
+- 通用 task-assignment（任务-资源分配）
+- 动态武器-目标分配 DWTA（含时空耦合约束、射程兼容性与弹药容量限制）
+
 ## 当前状态（截至 M7）
 
 已完成能力：
@@ -37,6 +41,14 @@ python -c "from main import main; main('experiments/configs/mock_llm.yaml')"
 python -c "from main import main; main('experiments/configs/real_llm.yaml')"
 ```
 
+### 2.1) 运行 DWTA 场景（推荐先 smoke）
+
+```bash
+python -c "from main import main; main('experiments/configs/dwta_small_smoke.yaml')"
+python -c "from main import main; main('experiments/configs/dwta_small.yaml')"
+python -c "from main import main; main('experiments/configs/dwta_medium.yaml')"
+```
+
 ### 3) baseline 运行
 
 ```bash
@@ -48,7 +60,11 @@ python -c "from experiments.baselines.runner import run_no_memory_baseline; prin
 ## 配置说明（`experiments/configs/*.yaml`）
 
 配置统一按以下分层：
-- `problem`: 问题规模与数据（任务数、资源数、成本矩阵、负载、容量）。
+- `problem`: 问题定义。
+  - `task_assignment`：使用 `n_tasks/n_resources/cost_matrix/task_loads/capacities`。
+  - `dwta`：可选两种输入方式：
+    1) 实体输入（`munition_types + weapons + targets`），运行时预计算 `compatibility_matrix` 与 `lethality_matrix`；
+    2) 预计算输入（`precomputed`），直接给出 `ammo_capacities/compatibility_matrix/lethality_matrix/required_damage`。
 - `optimizer`: NSGA-II 参数（种群、代数、交叉/变异概率、随机种子）。
 - `controller`: 控制器参数（控制周期、阈值、参数边界、步长）。
 - `controller_mode`: 运行模式（`rule` / `mock_llm` / `real_llm`）。
@@ -91,3 +107,16 @@ pytest -q
 M7 相关重点测试：
 - `tests/test_main_config_modes.py`
 - `tests/test_baseline_runner.py`
+
+
+## DWTA Smoke 预期输出
+
+运行 `dwta_small_smoke.yaml` 后，`logging.output_dir` 下会生成：
+- `events.jsonl`（包含 state/action 事件流）
+- `generation_metrics.jsonl`（逐代 hv、feasible_ratio 等）
+- `actions.jsonl`（控制动作与四元状态）
+- `experiences.jsonl`（启用 memory 时）
+- `summary.json`（最终指标与日志路径）
+
+常见日志信号：
+- 当 `feasible_ratio` 偏低时，控制器通常会进入 `increase_feasibility`，对应 DWTA 中弹药超配或时空/射程兼容性违约修复。

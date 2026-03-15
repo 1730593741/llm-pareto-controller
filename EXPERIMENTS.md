@@ -8,7 +8,8 @@
 2. 如何修改问题数据参数（任务数、成本矩阵、容量等）；
 3. 如何修改优化与控制参数（NSGA-II + rule/LLM 控制）；
 4. 如何执行 smoke / pilot / paper 三层实验；
-5. 如何导出汇总结果做对照分析。
+5. 如何运行 DWTA 场景（实体输入与预计算矩阵输入）；
+6. 如何导出汇总结果做对照分析。
 
 ---
 
@@ -38,6 +39,10 @@ python main.py
 ---
 
 ## 2) 配置文件结构：你要改参数，先看这 8 个块
+
+> DWTA 场景新增说明：`problem.problem_type: dwta` 时，支持两种配置路径：
+> - **实体输入**：`munition_types + weapons + targets`，运行时自动预计算 `compatibility_matrix` / `lethality_matrix`；
+> - **预计算输入**：`precomputed`，直接使用矩阵，适合复现实验与批量对照。
 
 实验主配置位于 `experiments/configs/*.yaml`，核心字段如下：
 
@@ -110,6 +115,39 @@ python -c "from main import main; main('experiments/configs/my_data_v1.yaml')"
 
 ---
 
+
+## 3.4 DWTA 配置结构（新增）
+
+### A) 实体输入（自动预计算）
+
+```yaml
+problem:
+  problem_type: dwta
+  munition_types: ...
+  weapons: ...
+  targets: ...
+```
+
+运行时会生成：
+- `ammo_capacities`（武器弹药上限）
+- `compatibility_matrix`（射程+时窗耦合兼容）
+- `lethality_matrix`（武器-目标毁伤贡献）
+- `required_damage`（目标所需毁伤）
+
+### B) 预计算输入（直接加载）
+
+```yaml
+problem:
+  problem_type: dwta
+  precomputed:
+    ammo_capacities: [...]
+    compatibility_matrix: ...
+    lethality_matrix: ...
+    required_damage: [...]
+```
+
+当你已离线固定场景矩阵（例如论文复现实验）时，推荐使用 `precomputed`。
+
 ## 4) 改“算法参数”：optimizer / controller / memory
 
 ## 4.1 NSGA-II 参数（`optimizer`）
@@ -156,6 +194,14 @@ python -c "from main import main; main('experiments/configs/my_data_v1.yaml')"
 python -c "from main import main; main('experiments/configs/rule_control.yaml')"
 python -c "from main import main; main('experiments/configs/mock_llm.yaml')"
 python -c "from main import main; main('experiments/configs/real_llm.yaml')"
+```
+
+DWTA smoke / mainline：
+
+```bash
+python -c "from main import main; main('experiments/configs/dwta_small_smoke.yaml')"
+python -c "from main import main; main('experiments/configs/dwta_small.yaml')"
+python -c "from main import main; main('experiments/configs/dwta_medium.yaml')"
 ```
 
 适用：调试某个参数改动是否生效。
@@ -237,3 +283,14 @@ python -m experiments.export_results --runs-root experiments/runs/paper --output
 - 配置快照是否与你编辑文件一致；
 - seed 是否在不同方法间对齐；
 - 输出目录是否被旧实验污染（建议每次用新目录）。
+
+
+## DWTA Smoke 预期日志片段
+
+典型 `summary.json` 关注字段：
+- `benchmark`: `dwta_small_smoke`
+- `controller_mode`: `rule` / `mock_llm` / `real_llm`
+- `final_hv`, `final_feasible_ratio`, `control_state_counts`
+
+典型 `actions.jsonl` 信号：
+- 若 `feasible_ratio` 较低，常见 `control_state=increase_feasibility`，用于抑制弹药超载与时空/射程兼容性冲突。
