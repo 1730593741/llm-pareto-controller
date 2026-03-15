@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from controller.operator_space import OperatorCapabilities, OperatorParams
-from optimizers.nsga2.operators import mutate_assignment, mutate_bounded_integers, one_point_crossover
+from optimizers.nsga2.operators import (
+    matrix_block_crossover,
+    mutate_assignment,
+    mutate_dwta_allocation,
+    one_point_crossover,
+)
 from optimizers.nsga2.population import Individual
 from optimizers.nsga2.selection import (
     assign_crowding_distance,
@@ -87,11 +92,6 @@ class NSGA2Solver:
             self.compatibility_matrix = None
             self.resource_stage_levels = None
             self.stage_transitions = None
-            self._dwta_upper_bounds = [
-                int(self.dwta_data.ammo_capacities[weapon_idx])
-                for weapon_idx in range(self.dwta_data.n_weapons)
-                for _ in range(self.dwta_data.n_targets)
-            ]
             return
 
         if n_tasks < 0:
@@ -121,6 +121,13 @@ class NSGA2Solver:
 
     def get_operator_capabilities(self) -> OperatorCapabilities:
         """Return runtime-supported parameter dimensions."""
+        if self.dwta_data is not None:
+            return OperatorCapabilities(
+                supports_eta_c=True,
+                supports_eta_m=True,
+                supports_repair_prob=True,
+                supports_local_search_prob=True,
+            )
         return OperatorCapabilities(
             supports_eta_c=False,
             supports_eta_m=False,
@@ -153,6 +160,14 @@ class NSGA2Solver:
             if not 0.0 <= params.repair_prob <= 1.0:
                 raise ValueError("repair_prob must be in [0, 1]")
             self.config.repair_prob = params.repair_prob
+        if capabilities.supports_eta_c:
+            self.config.eta_c = params.eta_c
+        if capabilities.supports_eta_m:
+            self.config.eta_m = params.eta_m
+        if capabilities.supports_local_search_prob and params.local_search_prob is not None:
+            if not 0.0 <= params.local_search_prob <= 1.0:
+                raise ValueError("local_search_prob must be in [0, 1]")
+            self.config.local_search_prob = params.local_search_prob
 
     def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
         """Backward-compatible API for M4/M5 code paths."""
@@ -268,21 +283,61 @@ class NSGA2Solver:
         self._annotate_population(population)
         parents = parent_selection(population, self.config.population_size, self.rng)
 
+        # Controller knob mapping for DWTA matrix-aware variation:
+        # - mutation_prob: per-compatible-cell trigger rate in mutate_dwta_allocation.
+        # - eta_m: mutation locality; higher eta_m -> smaller integer edits.
+        # - local_search_prob: probability to apply an in-row transfer move.
+        # - eta_c: block-crossover axis preference (weapon rows vs target columns).
+        # - repair_prob: final feasibility safeguard, unchanged semantics.
+        # The controller's mutation_step remains compatible indirectly: existing
+        # closed-loop logic uses mutation_step to adjust mutation_prob over time,
+        # and this updated mutation_prob is consumed directly by DWTA mutation.
+        dwta_mutation_step = max(1.0, self.config.mutation_prob * 10.0)
+
         offspring: list[Individual] = []
         for idx in range(0, len(parents), 2):
             parent_a = parents[idx]
             parent_b = parents[(idx + 1) % len(parents)]
 
-            child_a, child_b = one_point_crossover(
-                parent_a.genome,
-                parent_b.genome,
-                crossover_prob=self.config.crossover_prob,
-                rng=self.rng,
-            )
             if self.dwta_data is not None:
-                child_a = mutate_bounded_integers(child_a, self._dwta_upper_bounds, self.config.mutation_prob, self.rng)
-                child_b = mutate_bounded_integers(child_b, self._dwta_upper_bounds, self.config.mutation_prob, self.rng)
+                child_a, child_b = matrix_block_crossover(
+                    parent_a.genome,
+                    parent_b.genome,
+                    n_weapons=self.dwta_data.n_weapons,
+                    n_targets=self.dwta_data.n_targets,
+                    crossover_prob=self.config.crossover_prob,
+                    rng=self.rng,
+                    eta_c=self.config.eta_c,
+                )
+                child_a = mutate_dwta_allocation(
+                    child_a,
+                    n_weapons=self.dwta_data.n_weapons,
+                    n_targets=self.dwta_data.n_targets,
+                    compatibility_matrix=self.dwta_data.compatibility_matrix,
+                    mutation_prob=self.config.mutation_prob,
+                    rng=self.rng,
+                    mutation_step=dwta_mutation_step,
+                    eta_m=self.config.eta_m,
+                    local_search_prob=self.config.local_search_prob,
+                )
+                child_b = mutate_dwta_allocation(
+                    child_b,
+                    n_weapons=self.dwta_data.n_weapons,
+                    n_targets=self.dwta_data.n_targets,
+                    compatibility_matrix=self.dwta_data.compatibility_matrix,
+                    mutation_prob=self.config.mutation_prob,
+                    rng=self.rng,
+                    mutation_step=dwta_mutation_step,
+                    eta_m=self.config.eta_m,
+                    local_search_prob=self.config.local_search_prob,
+                )
             else:
+                child_a, child_b = one_point_crossover(
+                    parent_a.genome,
+                    parent_b.genome,
+                    crossover_prob=self.config.crossover_prob,
+                    rng=self.rng,
+                )
                 child_a = mutate_assignment(child_a, self.n_resources, self.config.mutation_prob, self.rng)
                 child_b = mutate_assignment(child_b, self.n_resources, self.config.mutation_prob, self.rng)
 
