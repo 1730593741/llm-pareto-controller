@@ -1,4 +1,4 @@
-"""Run ablation matrix experiments by deriving configs from a baseline method config."""
+"""运行 ablation 矩阵 实验 通过 deriving configs 从 一个 基线 方法 配置."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def run_ablation_matrix(
     tau_values: tuple[int, ...] = (1, 3, 5, 10),
     memory_windows: tuple[int, ...] = (5, 20, 50),
 ) -> dict[str, dict[int, dict[str, dict[str, Any]]]]:
-    """Run benchmark x seed x ablation matrix from the rule-control base config."""
+    """运行 基准问题 x 种子 x ablation 矩阵 从 该 规则-控制 base 配置."""
     base_payload = _load_yaml(_BASE_METHOD_CONFIG)
     results: dict[str, dict[int, dict[str, dict[str, Any]]]] = {}
     root = Path(output_root)

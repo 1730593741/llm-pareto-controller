@@ -1,4 +1,4 @@
-"""Actuator role: convert strategy decisions into bounded control actions."""
+"""Actuator 角色: convert strategy decisions 转换为 bounded 控制 动作."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class ActuatorOutput(BaseModel):
-    """Structured LLM output before conversion to ControlAction."""
+    """结构化 LLM 输出 before conversion 到 ControlAction."""
 
     mutation_prob: float = Field()
     crossover_prob: float = Field()
@@ -28,7 +28,7 @@ class ActuatorOutput(BaseModel):
 
 
 class Actuator:
-    """Turn strategy output into safe operator probabilities."""
+    """将策略输出转换为安全的算子概率."""
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-"""Smoke tests for matched experiment helpers."""
+"""冒烟测试s 用于 matched 实验 辅助工具."""
 
 from __future__ import annotations
 

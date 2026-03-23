@@ -1,4 +1,4 @@
-"""Reusable experiment matrix specifications for matched and ablation runs."""
+"""可复用的实验矩阵规格 用于 matched 与 ablation runs."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ DEFAULT_MATCHED_SEEDS: tuple[int, ...] = (11, 23, 37)
 
 @dataclass(frozen=True, slots=True)
 class MatchedMatrix:
-    """Matched matrix axes for paper-ready method comparisons."""
+    """Matched 矩阵 axes 用于 paper-ready 方法 comparisons."""
 
     methods: tuple[str, ...] = DEFAULT_MATCHED_METHODS
     benchmarks: tuple[str, ...] = DEFAULT_MATCHED_BENCHMARKS
@@ -33,7 +33,7 @@ class MatchedMatrix:
 
 @dataclass(frozen=True, slots=True)
 class AblationMatrix:
-    """Ablation matrix axes for method component removal/comparison."""
+    """Ablation 矩阵 axes 用于 方法 component removal/comparison."""
 
     seeds: tuple[int, ...] = DEFAULT_MATCHED_SEEDS
     benchmarks: tuple[str, ...] = DEFAULT_MATCHED_BENCHMARKS

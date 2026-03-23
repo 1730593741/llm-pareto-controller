@@ -1,4 +1,4 @@
-"""Checks required ablation matrix switches are present and minimally well-formed."""
+"""Checks 必需的 ablation 矩阵 switches 为 存在 与 minimally 格式正确."""
 
 from __future__ import annotations
 

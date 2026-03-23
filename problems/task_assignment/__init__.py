@@ -1,1 +1,1 @@
-"""Task-assignment problem package scaffold."""
+"""任务分配问题包骨架."""

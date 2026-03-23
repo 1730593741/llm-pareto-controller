@@ -1,1 +1,1 @@
-"""Test package marker for project scaffold."""
+"""项目骨架的测试包标记."""

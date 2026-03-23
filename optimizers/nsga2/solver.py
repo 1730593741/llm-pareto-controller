@@ -1,4 +1,4 @@
-"""Minimal runnable NSGA-II solver for task-assignment and DWTA problems."""
+"""最小可运行的 NSGA-II 求解器 用于 任务-分配 与 DWTA 问题."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from problems.task_assignment.repair import repair_overloaded_assignment
 
 @dataclass(slots=True)
 class NSGA2Config:
-    """Config for minimal NSGA-II loop."""
+    """最小 NSGA-II 循环配置."""
 
     population_size: int = 40
     generations: int = 30
@@ -47,7 +47,7 @@ class NSGA2Config:
 
 
 class NSGA2Solver:
-    """NSGA-II solver with injectable problem arrays for task assignment or DWTA."""
+    """NSGA-II 求解器 可注入问题数组的 用于 任务 分配 或 DWTA."""
 
     def __init__(
         self,
@@ -120,7 +120,7 @@ class NSGA2Solver:
         self.stage_transitions = stage_transitions
 
     def get_operator_capabilities(self) -> OperatorCapabilities:
-        """Return runtime-supported parameter dimensions."""
+        """返回 运行时-supported parameter dimensions."""
         if self.dwta_data is not None:
             return OperatorCapabilities(
                 supports_eta_c=True,
@@ -136,7 +136,7 @@ class NSGA2Solver:
         )
 
     def get_operator_params(self) -> OperatorParams:
-        """Return current unified parameter snapshot."""
+        """返回 当前 unified parameter snapshot."""
         return OperatorParams(
             mutation_prob=self.config.mutation_prob,
             crossover_prob=self.config.crossover_prob,
@@ -147,7 +147,7 @@ class NSGA2Solver:
         )
 
     def set_operator_params(self, params: OperatorParams) -> None:
-        """Update runtime parameters with capability-aware application."""
+        """Update 运行时 parameters，并带有 capability-aware application."""
         if not 0.0 <= params.crossover_prob <= 1.0:
             raise ValueError("crossover_prob must be in [0, 1]")
         if not 0.0 <= params.mutation_prob <= 1.0:
@@ -170,7 +170,7 @@ class NSGA2Solver:
             self.config.local_search_prob = params.local_search_prob
 
     def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
-        """Backward-compatible API for M4/M5 code paths."""
+        """Backward-兼容的 API 用于 M4/M5 code paths."""
         self.set_operator_params(
             OperatorParams(
                 mutation_prob=mutation_prob,
@@ -239,7 +239,7 @@ class NSGA2Solver:
         )
 
     def initialize_population(self) -> list[Individual]:
-        """Create an initial repaired population for iterative closed-loop use."""
+        """为迭代闭环使用创建初始修复种群."""
         if self.dwta_data is not None:
             return [
                 self._evaluate(
@@ -283,15 +283,15 @@ class NSGA2Solver:
         self._annotate_population(population)
         parents = parent_selection(population, self.config.population_size, self.rng)
 
-        # Controller knob mapping for DWTA matrix-aware variation:
-        # - mutation_prob: per-compatible-cell trigger rate in mutate_dwta_allocation.
-        # - eta_m: mutation locality; higher eta_m -> smaller integer edits.
-        # - local_search_prob: probability to apply an in-row transfer move.
-        # - eta_c: block-crossover axis preference (weapon rows vs target columns).
-        # - repair_prob: final feasibility safeguard, unchanged semantics.
-        # The controller's mutation_step remains compatible indirectly: existing
-        # closed-loop logic uses mutation_step to adjust mutation_prob over time,
-        # and this updated mutation_prob is consumed directly by DWTA mutation.
+        # Controller knob mapping 用于 DWTA 矩阵-aware variation:
+        # - mutation_prob: per-兼容的-cell trigger rate 在 mutate_dwta_allocation.
+        # - eta_m: 变异 locality; higher eta_m -> smaller 整数 edits.
+        # - local_search_prob: 概率 到 apply 一个 在-row transfer move.
+        # - eta_c: block-交叉 axis preference (Weapon rows vs Target columns).
+        # - repair_prob: 最终 可行性 safeguard, unchanged semantics.
+        # 该 控制器's mutation_step remains 兼容的 indirectly: existing
+        # 闭环 logic uses mutation_step 到 adjust mutation_prob over time,
+        # 与 this updated mutation_prob 为 consumed directly 通过 DWTA 变异.
         dwta_mutation_step = max(1.0, self.config.mutation_prob * 10.0)
 
         offspring: list[Individual] = []
@@ -391,13 +391,13 @@ class NSGA2Solver:
         return offspring[: self.config.population_size]
 
     def evolve_one_generation(self, population: list[Individual]) -> list[Individual]:
-        """Run a single evolutionary generation and return selected population."""
+        """运行单代进化并返回选中的种群."""
         offspring = self._make_offspring(population)
         merged = population + offspring
         return environmental_selection(merged, self.config.population_size)
 
     def run(self) -> list[Individual]:
-        """Run NSGA-II and return final population."""
+        """运行 NSGA-II 与 返回 最终 种群."""
         population = self.initialize_population()
 
         for _ in range(self.config.generations):

@@ -1,4 +1,4 @@
-"""Simple repair heuristics for constrained task assignments."""
+"""简单修复启发式 用于 constrained 任务 assignments."""
 
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ def repair_overloaded_assignment(
     resource_stage_levels: Sequence[int] | None = None,
     stage_transitions: Sequence[Sequence[int]] | None = None,
 ) -> Assignment:
-    """Repair assignment violations with a deterministic greedy pass."""
+    """Repair 分配 violations，并带有 一个 确定性 贪心 pass."""
     repaired = list(assignment)
 
     max_rounds = max(1, len(repaired) * 4)

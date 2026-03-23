@@ -1,2 +1,2 @@
-"""Evaluation utilities for paper-level multi-objective metrics."""
+"""评估工具 用于 论文级 多目标指标."""
 

@@ -1,4 +1,4 @@
-"""CLI entrypoint for running toy/pilot/paper experiment matrices."""
+"""CLI 入口 用于 running toy/pilot/paper 实验 matrices."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def run_matrix(*, preset: str, output_root: str | Path, include_ablation: bool) -> dict[str, Any]:
-    """Run selected matrix preset and return manifest payload."""
+    """运行 selected 矩阵 preset 与 返回 manifest payload."""
     if preset not in MATCHED_PRESETS or preset not in ABLATION_PRESETS:
         raise ValueError(f"Unsupported preset '{preset}'")
 

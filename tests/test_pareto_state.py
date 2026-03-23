@@ -1,4 +1,4 @@
-"""Tests for Pareto-state sensing over NSGA-II populations."""
+"""用于测试 Pareto-状态 感知 over NSGA-II populations."""
 
 import pytest
 

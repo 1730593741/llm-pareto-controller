@@ -1,1 +1,1 @@
-"""Control-loop strategy package scaffold."""
+"""控制循环 strategy 包骨架."""

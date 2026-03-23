@@ -1,4 +1,4 @@
-"""Unified operator-parameter space and capability model for closed-loop control."""
+"""统一的 算子参数空间 与 能力模型 用于 闭环 控制."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(slots=True)
 class OperatorCapabilities:
-    """Runtime capability flags for controllable operator/search parameters."""
+    """运行时能力标记 用于 可控算子/搜索参数."""
 
     supports_eta_c: bool = False
     supports_eta_m: bool = False
@@ -16,13 +16,13 @@ class OperatorCapabilities:
     supports_local_search_prob: bool = False
 
     def to_dict(self) -> dict[str, bool]:
-        """Serialize capability flags for prompts and logs."""
+        """序列化 能力标记 用于 prompt 与日志."""
         return asdict(self)
 
 
 @dataclass(slots=True)
 class OperatorParams:
-    """Unified parameter carrier for optimizer operator/search settings."""
+    """统一的 参数载体 用于 优化器 算子/搜索设置."""
 
     mutation_prob: float
     crossover_prob: float
@@ -32,16 +32,16 @@ class OperatorParams:
     local_search_prob: float | None = None
 
     def to_dict(self) -> dict[str, float | None]:
-        """Serialize all known parameters.
-
-        Unsupported parameters should remain ``None`` and are guarded by capability
-        flags to avoid misleading claims of effectiveness.
-        """
+        """序列化 所有 已知参数.
+        
+                不支持的参数应保持为 ``None`` 与 为 guarded 通过 capability
+                flags 以避免误导性的有效性表述.
+                """
 
         return asdict(self)
 
     def active_params(self, capabilities: OperatorCapabilities) -> dict[str, float]:
-        """Return only parameters that are actually supported and effective."""
+        """返回 实际受支持且有效的参数."""
         active: dict[str, float] = {
             "mutation_prob": self.mutation_prob,
             "crossover_prob": self.crossover_prob,
@@ -63,7 +63,7 @@ def merge_supported_params(
     target: OperatorParams,
     capabilities: OperatorCapabilities,
 ) -> OperatorParams:
-    """Build an updated parameter set while preserving unsupported dimensions."""
+    """构建更新后的参数集合，同时保留不受支持的维度."""
     return OperatorParams(
         mutation_prob=target.mutation_prob,
         crossover_prob=target.crossover_prob,
@@ -77,7 +77,7 @@ def merge_supported_params(
 
 
 def to_float_if_present(value: Any) -> float | None:
-    """Convert optional scalar to float when present."""
+    """在可选标量存在时将其转换为 float."""
     if value is None:
         return None
     return float(value)

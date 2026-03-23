@@ -1,4 +1,4 @@
-"""Tests for LLM actuator structured output and clipping."""
+"""用于测试 LLM actuator 结构化 输出 与 clipping."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from llm.strategist import StrategyDecision
 
 
 class OutOfRangeMockClient(LLMClient):
-    """Mock client that returns out-of-bound probabilities for clipping tests."""
+    """Mock client 该 返回越界概率值 用于 clipping 测试."""
 
     def generate_json(self, *, task: str, payload: dict[str, object], prompt_template: str):
         del payload, prompt_template
@@ -24,7 +24,7 @@ class OutOfRangeMockClient(LLMClient):
 
 
 class BadFormatMockClient(LLMClient):
-    """Mock client that simulates malformed LLM payload for actuator hold-path tests."""
+    """Mock client 该 模拟格式错误的 LLM 载荷 用于 actuator hold-path 测试."""
 
     def generate_json(self, *, task: str, payload: dict[str, object], prompt_template: str):
         del task, payload, prompt_template

@@ -1,4 +1,4 @@
-"""Unified LLM client with mock/real transport, retry, and safe fallback behavior."""
+"""统一的 LLM client，并带有 模拟/真实 transport, 重试, 与 安全回退行为."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class LLMClientConfig:
-    """Runtime settings for LLM client modes."""
+    """运行时设置 用于 LLM client 模式."""
 
     mode: Literal["mock_llm", "real_llm"] = "mock_llm"
     provider: str = "openai"
@@ -32,7 +32,7 @@ class LLMClientConfig:
 
 @dataclass(slots=True)
 class LLMResponse:
-    """Unified response passed to upper LLM business roles."""
+    """统一响应 passed 到 upper LLM business roles."""
 
     success: bool
     task: str
@@ -42,13 +42,13 @@ class LLMResponse:
 
 
 class LLMClient:
-    """Facade for mock and real LLM calls without leaking HTTP details upstream."""
+    """门面 用于 模拟 与 真实 LLM calls 不向上层暴露 HTTP 细节."""
 
     def __init__(self, config: LLMClientConfig) -> None:
         self.config = config
 
     def generate_json(self, *, task: str, payload: dict[str, Any], prompt_template: str) -> LLMResponse:
-        """Return a unified structured response for chain tasks."""
+        """返回 一个 unified 结构化 响应 用于 chain 任务."""
         if self.config.mode == "mock_llm":
             return LLMResponse(success=True, task=task, content=self._mock_response(task=task, payload=payload))
         if self.config.mode == "real_llm":

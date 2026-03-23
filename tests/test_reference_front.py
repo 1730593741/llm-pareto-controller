@@ -1,4 +1,4 @@
-"""Tests for reference-front construction and provenance."""
+"""用于测试 reference-前沿 construction 与 provenance."""
 
 from __future__ import annotations
 

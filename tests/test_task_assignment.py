@@ -1,4 +1,4 @@
-"""Basic tests for task-assignment M1 modules."""
+"""基础测试 用于 任务-分配 M1 modules."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from problems.task_assignment.repair import repair_overloaded_assignment
 
 
 def test_random_assignment_shape_and_range() -> None:
-    """Random initializer should produce valid index values."""
+    """Random initializer 应生成合法的索引值."""
     assignment = random_assignment(n_tasks=8, n_resources=3, rng=random.Random(7))
 
     assert len(assignment) == 8
@@ -23,7 +23,7 @@ def test_random_assignment_shape_and_range() -> None:
 
 
 def test_objectives_compute_total_cost_and_imbalance() -> None:
-    """Objective helpers should return expected values for a small example."""
+    """目标辅助函数 应返回预期值 用于 一个 small example."""
     assignment = [0, 1, 1]
     cost_matrix = [
         [1.0, 3.0],
@@ -38,7 +38,7 @@ def test_objectives_compute_total_cost_and_imbalance() -> None:
 
 
 def test_constraints_feasibility_and_violation() -> None:
-    """Constraint helpers should detect overload and violation amount."""
+    """Constraint 辅助工具 应能检测超载和违反量."""
     assignment = [0, 0, 1]
     task_loads = [3.0, 2.0, 1.0]
     capacities = [4.0, 2.0]
@@ -48,7 +48,7 @@ def test_constraints_feasibility_and_violation() -> None:
 
 
 def test_repair_reduces_or_eliminates_capacity_violation() -> None:
-    """Repair should produce a solution with lower or zero violation when possible."""
+    """Repair 在可能时应产出违反更低或为零的解."""
     assignment = [0, 0, 0, 1]
     task_loads = [2.0, 1.0, 1.0, 1.0]
     capacities = [3.0, 3.0]

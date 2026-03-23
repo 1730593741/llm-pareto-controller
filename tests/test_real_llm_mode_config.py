@@ -1,4 +1,4 @@
-"""Tests for real_llm mode config wiring and graceful fallback behavior."""
+"""用于测试 real_llm 模式 配置 wiring 与 graceful fallback behavior."""
 
 from __future__ import annotations
 

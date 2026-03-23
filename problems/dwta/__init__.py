@@ -1,4 +1,4 @@
-"""Dynamic Weapon-Target Assignment (DWTA) problem package."""
+"""Dynamic Weapon-Target Assignment (DWTA) 问题包."""
 
 from problems.dwta.constraints import DWTAConstraintBreakdown, constraint_breakdown
 from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, random_allocation, to_genome, to_matrix

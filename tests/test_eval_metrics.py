@@ -1,4 +1,4 @@
-"""Tests for paper-level evaluation metrics."""
+"""用于测试 论文级 evaluation 指标."""
 
 from __future__ import annotations
 

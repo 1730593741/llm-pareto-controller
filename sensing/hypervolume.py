@@ -1,7 +1,7 @@
-"""Hypervolume utilities for Pareto-state sensing.
+"""Hypervolume 工具 用于 Pareto-状态 感知.
 
-This module currently exposes a stable interface with a simplified 2-objective
-implementation to keep the MVP lightweight and replaceable.
+This module currently exposes 一个 稳定接口，并带有 一个 simplified 2-目标
+implementation 到 keep 该 MVP 轻量 与 可替换.
 """
 
 from __future__ import annotations
@@ -12,27 +12,27 @@ ObjectivePoint = tuple[float, ...]
 
 
 class HypervolumeCalculator:
-    """Stable, replaceable hypervolume calculator interface."""
+    """稳定且可替换的 hypervolume calculator 接口."""
 
     def compute(self, points: Sequence[ObjectivePoint], reference_point: ObjectivePoint) -> float:
-        """Compute hypervolume for a minimization front and reference point."""
+        """计算 hypervolume 用于 一个 minimization 前沿 与 reference 点."""
         raise NotImplementedError
 
 
 class SimplifiedHypervolumeCalculator(HypervolumeCalculator):
-    """Simplified MVP hypervolume implementation.
-
-    Notes:
-      - Supports only two objectives for now.
-      - Assumes minimization objectives.
-      - Accumulates rectangle slices after filtering dominated points.
-    """
+    """简化版 MVP hypervolume 实现.
+    
+        说明：
+          - 当前仅支持两个目标。
+          - 假设目标为最小化。
+          - 在筛除支配点后累加矩形切片。
+        """
 
     def compute(self, points: Sequence[ObjectivePoint], reference_point: ObjectivePoint) -> float:
-        """Compute simplified 2D hypervolume.
-
-        Returns 0.0 for empty inputs. Raises ValueError if dimensions are invalid.
-        """
+        """计算 simplified 2D hypervolume.
+        
+                返回s 0.0 用于 空 inputs. Raises ValueError if dimensions 为 invalid.
+                """
         if not points:
             return 0.0
         if len(reference_point) != 2:
@@ -66,12 +66,12 @@ class SimplifiedHypervolumeCalculator(HypervolumeCalculator):
 
 
 def compute_hypervolume(points: Sequence[ObjectivePoint], reference_point: ObjectivePoint) -> float:
-    """Compute hypervolume via the default simplified calculator."""
+    """计算 hypervolume via 该 默认 simplified calculator."""
     return SimplifiedHypervolumeCalculator().compute(points, reference_point)
 
 
 def _filter_nondominated_2d(points: Sequence[tuple[float, float]]) -> list[tuple[float, float]]:
-    """Filter non-dominated points for two-objective minimization."""
+    """筛选 非支配 点 用于 two-目标 minimization."""
     result: list[tuple[float, float]] = []
     for point in points:
         dominated = False

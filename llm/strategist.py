@@ -1,4 +1,4 @@
-"""Strategist role: map analysis to four-state control intent with rationale."""
+"""Strategist 角色: map analysis 到 four-状态 控制 意图，并带有 依据."""
 
 from __future__ import annotations
 
@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 class StrategyDecision(BaseModel):
-    """High-level control state selected for actuator."""
+    """为 actuator 选择的高层控制状态."""
 
     control_state: ControlState
     rationale: str
 
 
 class Strategist:
-    """Translate analyst output into one canonical control-state decision."""
+    """将 analyst 输出转换为规范的控制状态决策."""
 
     def __init__(self, client: LLMClient, prompt_path: str = "llm/prompts/strategist.txt") -> None:
         self.client = client

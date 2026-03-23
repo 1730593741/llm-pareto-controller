@@ -1,4 +1,4 @@
-"""Tests for NSGA-II sorting and selection routines."""
+"""用于测试 NSGA-II sorting 与 选择 routines."""
 
 import math
 import random

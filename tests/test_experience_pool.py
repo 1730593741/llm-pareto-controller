@@ -1,4 +1,4 @@
-"""Tests for M5 experience pool behavior."""
+"""用于测试 M5 experience pool behavior."""
 
 import pytest
 

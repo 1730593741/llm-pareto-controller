@@ -1,12 +1,12 @@
-"""Paper-level multi-objective metrics for minimization problems.
+"""Paper-level 多目标指标 用于 最小化问题.
 
-This module implements robust metrics used in multi-objective papers:
+该模块实现多目标论文中常用的稳健指标:
 - IGD
 - IGD+
 - Spacing
-- Spread (Deb diversity metric for bi-objective fronts)
+- Spread (Deb 多样性 指标 用于 双目标前沿)
 
-All metrics assume minimization objectives and accept objective points as
+所有指标都假设目标是最小化，并接收如下形式的目标点
 ``Sequence[tuple[float, ...]]``.
 """
 
@@ -21,7 +21,7 @@ _EPS = 1e-12
 
 
 def unique_points(points: Sequence[ObjectivePoint], *, ndigits: int = 12) -> list[ObjectivePoint]:
-    """Return de-duplicated points with stable order and numeric tolerance."""
+    """返回 去重后的点，并保持稳定顺序与数值容差."""
     seen: set[tuple[float, ...]] = set()
     result: list[ObjectivePoint] = []
     for point in points:
@@ -34,7 +34,7 @@ def unique_points(points: Sequence[ObjectivePoint], *, ndigits: int = 12) -> lis
 
 
 def to_matrix(points: Sequence[ObjectivePoint]) -> np.ndarray:
-    """Convert point sequence to a validated 2D float matrix."""
+    """将点序列转换为通过校验的二维 float 矩阵."""
     if not points:
         return np.empty((0, 0), dtype=float)
     matrix = np.asarray(points, dtype=float)
@@ -44,15 +44,15 @@ def to_matrix(points: Sequence[ObjectivePoint]) -> np.ndarray:
 
 
 def igd(obtained_front: Sequence[ObjectivePoint], reference_front: Sequence[ObjectivePoint]) -> float:
-    """Compute IGD (Inverted Generational Distance).
-
-    IGD = mean_{r in R} min_{a in A} ||r - a||_2
-    where R is reference front and A is obtained front.
-
-    Returns:
-      - ``0.0`` when reference front is empty.
-      - ``inf`` when obtained front is empty but reference front is not empty.
-    """
+    """计算 IGD (Inverted Generational Distance).
+    
+        IGD = mean_{r 在 R} min_{一个 在 A} ||r - 一个||_2
+        where R 为 reference 前沿 与 A 为 obtained 前沿.
+    
+        返回：
+          - ``0.0`` 当 reference 前沿 为 空.
+          - ``inf`` 当 obtained 前沿 为 空 but reference 前沿 为 不 空.
+        """
     ref = to_matrix(unique_points(reference_front))
     if ref.size == 0:
         return 0.0
@@ -68,16 +68,16 @@ def igd(obtained_front: Sequence[ObjectivePoint], reference_front: Sequence[Obje
 
 
 def igd_plus(obtained_front: Sequence[ObjectivePoint], reference_front: Sequence[ObjectivePoint]) -> float:
-    """Compute IGD+.
-
-    IGD+ uses the modified distance:
-      d+(r, a) = || max(a - r, 0) ||_2
-    for minimization problems.
-
-    Returns:
-      - ``0.0`` when reference front is empty.
-      - ``inf`` when obtained front is empty but reference front is not empty.
-    """
+    """计算 IGD+.
+    
+        IGD+ uses 该 modified 距离:
+          d+(r, 一个) = || max(一个 - r, 0) ||_2
+        用于 最小化问题.
+    
+        返回：
+          - ``0.0`` 当 reference 前沿 为 空.
+          - ``inf`` 当 obtained 前沿 为 空 but reference 前沿 为 不 空.
+        """
     ref = to_matrix(unique_points(reference_front))
     if ref.size == 0:
         return 0.0
@@ -94,13 +94,13 @@ def igd_plus(obtained_front: Sequence[ObjectivePoint], reference_front: Sequence
 
 
 def spacing(front: Sequence[ObjectivePoint]) -> float:
-    """Compute Spacing metric.
-
-    For each point i, compute d_i as nearest-neighbor L1 distance.
-    Spacing = sqrt(sum((d_i - mean(d))^2) / (n - 1)).
-
-    Returns 0.0 when less than 2 points are available.
-    """
+    """计算 Spacing 指标.
+    
+        For each 点 i, 计算 d_i 作为 nearest-neighbor L1 距离.
+        Spacing = sqrt(sum((d_i - 均值(d))^2) / (n - 1)).
+    
+        返回s 0.0 当 less than 2 点 为 可用.
+        """
     matrix = to_matrix(unique_points(front))
     if matrix.shape[0] < 2:
         return 0.0
@@ -114,18 +114,18 @@ def spacing(front: Sequence[ObjectivePoint]) -> float:
 
 
 def spread(front: Sequence[ObjectivePoint], reference_front: Sequence[ObjectivePoint]) -> float:
-    """Compute Deb's spread (Δ) for bi-objective fronts.
-
-    For 2 objectives (minimization), points are sorted by objective-0.
-    Let d_f, d_l be distances from obtained extreme points to reference extremes,
-    and d_i be distances between consecutive obtained points.
-
-    Δ = (d_f + d_l + sum(|d_i - mean(d)|)) / (d_f + d_l + (n-1)*mean(d))
-
-    Returns:
-      - ``0.0`` if both obtained and reference fronts are empty.
-      - ``1.0`` when obtained front has <2 points but reference is non-empty.
-    """
+    """计算 Deb's spread (Δ) 用于 双目标前沿.
+    
+        For 2 目标 (minimization), 点 为 sorted 通过 目标-0.
+        Let d_f, d_l be distances 从 obtained extreme 点 到 reference extremes,
+        与 d_i be distances between consecutive obtained 点.
+    
+        Δ = (d_f + d_l + sum(|d_i - 均值(d)|)) / (d_f + d_l + (n-1)*均值(d))
+    
+        返回：
+          - ``0.0`` if both obtained 与 reference 前沿 为 空.
+          - ``1.0`` 当 obtained 前沿 has <2 点 but reference 为 non-空.
+        """
     got = to_matrix(unique_points(front))
     ref = to_matrix(unique_points(reference_front))
     if ref.size == 0 and got.size == 0:
@@ -135,7 +135,7 @@ def spread(front: Sequence[ObjectivePoint], reference_front: Sequence[ObjectiveP
     if got.shape[1] != 2:
         raise ValueError("spread currently supports exactly 2 objectives")
     if ref.size == 0:
-        # no explicit extremes available, degrade gracefully
+        # no explicit extremes 可用, degrade gracefully
         ref = got.copy()
     if ref.shape[1] != 2:
         raise ValueError("spread currently supports exactly 2 objectives")

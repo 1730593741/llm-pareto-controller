@@ -1,4 +1,4 @@
-"""Post-process matched experiments into reproducible paper-style summary tables."""
+"""对 matched 实验 做后处理 转换为 可复现的 paper-style 摘要 tables."""
 
 from __future__ import annotations
 

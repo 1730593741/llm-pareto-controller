@@ -1,4 +1,4 @@
-"""Smoke test for DWTA runtime end-to-end execution."""
+"""冒烟测试 用于 DWTA 运行时 end-到-end execution."""
 
 from __future__ import annotations
 

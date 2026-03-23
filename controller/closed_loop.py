@@ -1,4 +1,4 @@
-"""Closed-loop controller orchestration with pluggable control policies."""
+"""闭环 控制器 orchestration，并带有 pluggable 控制 策略."""
 
 from __future__ import annotations
 
@@ -14,22 +14,22 @@ from sensing.pareto_state import ParetoState, ParetoStateSensor
 
 
 class EventLogger(Protocol):
-    """Protocol for storage backends used by the closed-loop runner."""
+    """协议 用于 存储后端 用于 该 闭环 运行器."""
 
     def log(self, event: dict[str, Any]) -> None:
-        """Persist a single structured event."""
+        """持久化 一个 单个 结构化 事件."""
 
 
 class ExperienceLogger(Protocol):
-    """Protocol for optional experience persistence backend."""
+    """协议 用于 可选的 经验持久化后端."""
 
     def log(self, record: ExperienceRecord) -> None:
-        """Persist a single experience record."""
+        """持久化 一个 单个 experience 记录."""
 
 
 @dataclass(slots=True)
 class RuleControllerConfig:
-    """Thresholds and step sizes for the M4 rule policy."""
+    """阈值与步长 用于 该 M4 规则 策略."""
 
     control_interval: int = 5
     min_mutation_prob: float = 0.02
@@ -55,7 +55,7 @@ class RuleControllerConfig:
     improvement_threshold: float = 1e-3
 
     def __post_init__(self) -> None:
-        """Validate basic controller-rule bounds for safe runtime use."""
+        """校验 基础 控制器-规则 bounds 用于 安全 运行时 使用."""
         if self.control_interval <= 0:
             raise ValueError("control_interval must be > 0")
         if not 0.0 <= self.min_mutation_prob <= self.max_mutation_prob <= 1.0:
@@ -70,7 +70,7 @@ class RuleControllerConfig:
 
 @dataclass(slots=True)
 class RewardConfig:
-    """Reward weighting used by M5 experience collection."""
+    """奖励加权 用于 M5 经验采集."""
 
     alpha: float = 1.0
     beta: float = 0.1
@@ -78,7 +78,7 @@ class RewardConfig:
 
 @dataclass(slots=True)
 class ControlAction:
-    """Action chosen by controller for operator probabilities."""
+    """由 控制器 选择的算子概率动作."""
 
     generation: int
     mutation_prob: float
@@ -92,12 +92,12 @@ class ControlAction:
     decision_runtime_s: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize action for logs."""
+        """序列化 动作 用于 日志."""
         return asdict(self)
 
 
 class ControlPolicy(Protocol):
-    """Shared interface for rule and LLM-based controllers."""
+    """共享接口 用于 规则控制器与基于 LLM 的控制器."""
 
     control_interval: int
 
@@ -109,11 +109,11 @@ class ControlPolicy(Protocol):
         current_params: OperatorParams,
         capabilities: OperatorCapabilities,
     ) -> ControlAction:
-        """Return the next control action."""
+        """返回 该 下一步 控制 动作."""
 
 
 class RuleBasedController:
-    """Simple heuristic policy; extension point for M6 LLM controllers."""
+    """简单启发式策略; 扩展点 用于 M6 LLM 控制器."""
 
     def __init__(self, config: RuleControllerConfig) -> None:
         self.config = config
@@ -129,7 +129,7 @@ class RuleBasedController:
         current_mutation: float | None = None,
         current_crossover: float | None = None,
     ) -> ControlAction:
-        """Decide new operator parameters from sensed Pareto state."""
+        """根据 new 算子 parameters 从 sensed Pareto 状态."""
         del recent_experiences
         if current_params is not None:
             mutation = current_params.mutation_prob
@@ -210,7 +210,7 @@ class RuleBasedController:
 
 
 class LLMChainController:
-    """Composable controller using analyst -> strategist -> actuator chain."""
+    """可组合的 控制器 使用 analyst -> strategist -> actuator 链."""
 
     def __init__(
         self,
@@ -249,14 +249,14 @@ class LLMChainController:
 
 @dataclass(slots=True)
 class _PendingExperience:
-    """Internal transition holder until next state becomes available."""
+    """在下一状态可用前保存内部转移的占位对象."""
 
     state: ParetoState
     action: ControlAction
 
 
 class ClosedLoopRunner:
-    """Coordinate optimizer, sensing, control policy, and lightweight logging."""
+    """协调优化器、感知、控制策略与轻量日志."""
 
     def __init__(
         self,
@@ -278,7 +278,7 @@ class ClosedLoopRunner:
         self.reward_config = reward_config or RewardConfig()
 
     def run(self, *, generations: int, reference_point: tuple[float, ...] | None = None) -> list[ParetoState]:
-        """Execute closed-loop optimization and return sensed states."""
+        """执行 闭环 优化 与 返回 sensed 状态."""
         if generations < 0:
             raise ValueError("generations must be >= 0")
         population = self.solver.initialize_population()
@@ -386,7 +386,7 @@ class ClosedLoopRunner:
 
 
 def compute_reward(*, state: ParetoState, next_state: ParetoState, config: RewardConfig) -> float:
-    """Compute M5 lightweight reward from adjacent states."""
+    """计算 M5 轻量 reward 从 adjacent 状态."""
     delta_hv = next_state.hv - state.hv
     delta_feasible_ratio = next_state.feasible_ratio - state.feasible_ratio
     return delta_hv + config.alpha * delta_feasible_ratio - config.beta * next_state.mean_cv

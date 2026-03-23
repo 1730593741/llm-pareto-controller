@@ -1,1 +1,1 @@
-"""Experiment management package scaffold."""
+"""实验管理包骨架."""
