@@ -1,4 +1,14 @@
-"""最小可运行的 NSGA-II 求解器 用于 任务-分配 与 DWTA 问题."""
+"""Minimal but extensible NSGA-II solver used across project problem types.
+
+The solver currently supports two families of benchmarks:
+
+- generic task-assignment instances;
+- DWTA instances represented by scenario matrices.
+
+The closed-loop controller interacts with this module through a small,
+capability-aware operator interface so that online parameter adjustment remains
+possible without coupling the controller to problem-specific details.
+"""
 
 from __future__ import annotations
 
@@ -33,7 +43,7 @@ from problems.task_assignment.repair import repair_overloaded_assignment
 
 @dataclass(slots=True)
 class NSGA2Config:
-    """最小 NSGA-II 循环配置."""
+    """Configuration for the minimal NSGA-II loop."""
 
     population_size: int = 40
     generations: int = 30
@@ -47,7 +57,13 @@ class NSGA2Config:
 
 
 class NSGA2Solver:
-    """NSGA-II 求解器 可注入问题数组的 用于 任务 分配 或 DWTA."""
+    """NSGA-II solver for task-assignment and DWTA problems.
+
+    The constructor normalizes the two supported problem families into a single
+    runtime object. Downstream code can therefore initialize populations,
+    evaluate individuals, and update operator parameters without branching on
+    the underlying benchmark type.
+    """
 
     def __init__(
         self,
@@ -80,6 +96,9 @@ class NSGA2Solver:
         self.rng = random.Random(config.seed)
         self.dwta_data = dwta_data
 
+        # DWTA uses a benchmark object instead of generic task-assignment arrays.
+        # We still populate a compatible solver shape so the controller and
+        # logging layers can query the solver through a uniform interface.
         if self.dwta_data is not None:
             self.problem_mode = "dwta"
             self.n_tasks = self.dwta_data.n_weapons * self.dwta_data.n_targets
@@ -120,7 +139,11 @@ class NSGA2Solver:
         self.stage_transitions = stage_transitions
 
     def get_operator_capabilities(self) -> OperatorCapabilities:
-        """返回 运行时-supported parameter dimensions."""
+        """Describe which operator dimensions are meaningful for this problem.
+
+        The controller uses this metadata to avoid proposing adjustments that
+        would have no effect in the active solver/problem combination.
+        """
         if self.dwta_data is not None:
             return OperatorCapabilities(
                 supports_eta_c=True,
@@ -136,7 +159,7 @@ class NSGA2Solver:
         )
 
     def get_operator_params(self) -> OperatorParams:
-        """返回 当前 unified parameter snapshot."""
+        """Return a unified snapshot of the current operator parameters."""
         return OperatorParams(
             mutation_prob=self.config.mutation_prob,
             crossover_prob=self.config.crossover_prob,
@@ -147,7 +170,7 @@ class NSGA2Solver:
         )
 
     def set_operator_params(self, params: OperatorParams) -> None:
-        """Update 运行时 parameters，并带有 capability-aware application."""
+        """Update runtime parameters using capability-aware application rules."""
         if not 0.0 <= params.crossover_prob <= 1.0:
             raise ValueError("crossover_prob must be in [0, 1]")
         if not 0.0 <= params.mutation_prob <= 1.0:
@@ -170,7 +193,7 @@ class NSGA2Solver:
             self.config.local_search_prob = params.local_search_prob
 
     def set_operator_probs(self, *, mutation_prob: float, crossover_prob: float) -> None:
-        """Backward-兼容的 API 用于 M4/M5 code paths."""
+        """Backward-compatible wrapper retained for early controller code paths."""
         self.set_operator_params(
             OperatorParams(
                 mutation_prob=mutation_prob,
@@ -180,6 +203,7 @@ class NSGA2Solver:
         )
 
     def _evaluate(self, genome: list[int]) -> Individual:
+        """Evaluate one genome and package the result as an ``Individual``."""
         if self.dwta_data is not None:
             objectives = compute_dwta_objectives(
                 genome,
@@ -239,7 +263,7 @@ class NSGA2Solver:
         )
 
     def initialize_population(self) -> list[Individual]:
-        """为迭代闭环使用创建初始修复种群."""
+        """Create the initial repaired population used by the closed loop."""
         if self.dwta_data is not None:
             return [
                 self._evaluate(
@@ -275,23 +299,26 @@ class NSGA2Solver:
         ]
 
     def _annotate_population(self, individuals: list[Individual]) -> None:
+        """Refresh NSGA-II rank/crowding annotations in-place for a population."""
         fronts = non_dominated_sort(individuals)
         for front in fronts:
             assign_crowding_distance(front)
 
     def _make_offspring(self, population: list[Individual]) -> list[Individual]:
+        """Generate one offspring batch using selection, variation, and repair.
+
+        For DWTA problems, the controller-adjustable operator knobs map to a
+        matrix-aware variation process:
+
+        - ``mutation_prob`` controls per-cell mutation trigger rate;
+        - ``eta_m`` shapes mutation locality;
+        - ``local_search_prob`` enables an additional row-level improvement move;
+        - ``eta_c`` biases matrix block crossover behavior;
+        - ``repair_prob`` keeps its standard post-variation feasibility role.
+        """
         self._annotate_population(population)
         parents = parent_selection(population, self.config.population_size, self.rng)
 
-        # Controller knob mapping 用于 DWTA 矩阵-aware variation:
-        # - mutation_prob: per-兼容的-cell trigger rate 在 mutate_dwta_allocation.
-        # - eta_m: 变异 locality; higher eta_m -> smaller 整数 edits.
-        # - local_search_prob: 概率 到 apply 一个 在-row transfer move.
-        # - eta_c: block-交叉 axis preference (Weapon rows vs Target columns).
-        # - repair_prob: 最终 可行性 safeguard, unchanged semantics.
-        # 该 控制器's mutation_step remains 兼容的 indirectly: existing
-        # 闭环 logic uses mutation_step 到 adjust mutation_prob over time,
-        # 与 this updated mutation_prob 为 consumed directly 通过 DWTA 变异.
         dwta_mutation_step = max(1.0, self.config.mutation_prob * 10.0)
 
         offspring: list[Individual] = []
@@ -391,13 +418,13 @@ class NSGA2Solver:
         return offspring[: self.config.population_size]
 
     def evolve_one_generation(self, population: list[Individual]) -> list[Individual]:
-        """运行单代进化并返回选中的种群."""
+        """Advance the population by one NSGA-II generation."""
         offspring = self._make_offspring(population)
         merged = population + offspring
         return environmental_selection(merged, self.config.population_size)
 
     def run(self) -> list[Individual]:
-        """运行 NSGA-II 与 返回 最终 种群."""
+        """Run the configured number of generations and return the final population."""
         population = self.initialize_population()
 
         for _ in range(self.config.generations):
@@ -405,3 +432,7 @@ class NSGA2Solver:
 
         self._annotate_population(population)
         return population
+
+    def solve(self) -> list[Individual]:
+        """Alias for ``run`` kept for callers that prefer solver-style naming."""
+        return self.run()

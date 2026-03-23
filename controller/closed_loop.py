@@ -1,4 +1,18 @@
-"""闭环 控制器 orchestration，并带有 pluggable 控制 策略."""
+"""Closed-loop orchestration for adaptive NSGA-II experiments.
+
+This module connects four responsibilities that are intentionally kept separate
+elsewhere in the repository:
+
+1. ``NSGA2Solver`` performs search and owns the mutable operator parameters.
+2. ``ParetoStateSensor`` compresses a population into a structured search state.
+3. ``ControlPolicy`` implementations decide how to react to the sensed state.
+4. ``ExperiencePool`` / loggers persist the state-action-reward transition chain.
+
+The implementation here is deliberately lightweight: it does not embed problem-
+specific logic or LLM transport code. Instead, it defines a stable coordination
+layer that can drive the current rule-based controller and the later
+analyst/strategist/actuator chain without changing the optimizer itself.
+"""
 
 from __future__ import annotations
 
@@ -14,22 +28,31 @@ from sensing.pareto_state import ParetoState, ParetoStateSensor
 
 
 class EventLogger(Protocol):
-    """协议 用于 存储后端 用于 该 闭环 运行器."""
+    """Protocol for a structured event sink used by the runner.
+
+    Implementations typically write JSONL records, but the runner only requires a
+    ``log`` method so that storage remains replaceable.
+    """
 
     def log(self, event: dict[str, Any]) -> None:
-        """持久化 一个 单个 结构化 事件."""
+        """Persist a single structured event payload."""
 
 
 class ExperienceLogger(Protocol):
-    """协议 用于 可选的 经验持久化后端."""
+    """Protocol for optional experience persistence backends."""
 
     def log(self, record: ExperienceRecord) -> None:
-        """持久化 一个 单个 experience 记录."""
+        """Persist a single experience record."""
 
 
 @dataclass(slots=True)
 class RuleControllerConfig:
-    """阈值与步长 用于 该 M4 规则 策略."""
+    """Thresholds and step sizes for the rule-based controller.
+
+    The controller only manipulates optimizer operator parameters. Bounds are
+    centralized here so that experiments can safely tune heuristics through
+    configuration files instead of hardcoded magic numbers.
+    """
 
     control_interval: int = 5
     min_mutation_prob: float = 0.02
@@ -55,7 +78,7 @@ class RuleControllerConfig:
     improvement_threshold: float = 1e-3
 
     def __post_init__(self) -> None:
-        """校验 基础 控制器-规则 bounds 用于 安全 运行时 使用."""
+        """Validate controller bounds to protect runtime experiments."""
         if self.control_interval <= 0:
             raise ValueError("control_interval must be > 0")
         if not 0.0 <= self.min_mutation_prob <= self.max_mutation_prob <= 1.0:
@@ -70,7 +93,7 @@ class RuleControllerConfig:
 
 @dataclass(slots=True)
 class RewardConfig:
-    """奖励加权 用于 M5 经验采集."""
+    """Weights used when converting state transitions into scalar rewards."""
 
     alpha: float = 1.0
     beta: float = 0.1
@@ -78,7 +101,12 @@ class RewardConfig:
 
 @dataclass(slots=True)
 class ControlAction:
-    """由 控制器 选择的算子概率动作."""
+    """A controller decision to be applied to optimizer operator parameters.
+
+    ``requested_params`` captures the ideal operator setting proposed by the
+    controller. ``applied_params`` stores the capability-aware subset that the
+    current problem/optimizer combination actually supports.
+    """
 
     generation: int
     mutation_prob: float
@@ -92,12 +120,12 @@ class ControlAction:
     decision_runtime_s: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """序列化 动作 用于 日志."""
+        """Serialize the action for logging and experience replay."""
         return asdict(self)
 
 
 class ControlPolicy(Protocol):
-    """共享接口 用于 规则控制器与基于 LLM 的控制器."""
+    """Shared controller interface for rule-based and LLM-based policies."""
 
     control_interval: int
 
@@ -109,11 +137,19 @@ class ControlPolicy(Protocol):
         current_params: OperatorParams,
         capabilities: OperatorCapabilities,
     ) -> ControlAction:
-        """返回 该 下一步 控制 动作."""
+        """Return the next control action based on state and recent context."""
 
 
 class RuleBasedController:
-    """简单启发式策略; 扩展点 用于 M6 LLM 控制器."""
+    """Simple heuristic controller used by the MVP closed loop.
+
+    The rule set intentionally mirrors the project specification:
+
+    - low feasibility -> push the search toward safer, more repair-heavy moves;
+    - low diversity -> increase exploration pressure;
+    - stagnation / weak HV progress -> strengthen convergence pressure;
+    - otherwise keep the current balance.
+    """
 
     def __init__(self, config: RuleControllerConfig) -> None:
         self.config = config
@@ -129,7 +165,12 @@ class RuleBasedController:
         current_mutation: float | None = None,
         current_crossover: float | None = None,
     ) -> ControlAction:
-        """根据 new 算子 parameters 从 sensed Pareto 状态."""
+        """Derive new operator parameters from the sensed Pareto state.
+
+        ``current_mutation`` / ``current_crossover`` are retained for backward
+        compatibility with earlier tests, while ``current_params`` is the
+        preferred code path used by the runner.
+        """
         del recent_experiences
         if current_params is not None:
             mutation = current_params.mutation_prob
@@ -144,6 +185,7 @@ class RuleBasedController:
         control_state = ControlState.MAINTAIN_BALANCE
         reason_details: list[str] = []
 
+        # First decide the high-level control intent from the observed state.
         if state.feasible_ratio < self.config.feasible_ratio_low:
             control_state = ControlState.INCREASE_FEASIBILITY
             mutation -= self.config.mutation_step * 0.5
@@ -163,6 +205,7 @@ class RuleBasedController:
             control_state = ControlState.MAINTAIN_BALANCE
             reason_details.append("metrics_in_expected_range")
 
+        # Then clip values into the safe experimental operating range.
         mutation = _clip(mutation, self.config.min_mutation_prob, self.config.max_mutation_prob)
         crossover = _clip(crossover, self.config.min_crossover_prob, self.config.max_crossover_prob)
 
@@ -171,6 +214,8 @@ class RuleBasedController:
         repair_prob = current_params.repair_prob if current_params else None
         local_search_prob = current_params.local_search_prob if current_params else None
 
+        # Apply optional parameter adjustments only when the optimizer supports
+        # the corresponding operator dimension.
         if capabilities.supports_repair_prob and repair_prob is not None:
             if control_state == ControlState.INCREASE_FEASIBILITY:
                 repair_prob += self.config.repair_step
@@ -182,27 +227,21 @@ class RuleBasedController:
 
         reason = control_state.value
         reason_detail = ";".join(reason_details)
+        requested_params = OperatorParams(
+            mutation_prob=mutation,
+            crossover_prob=crossover,
+            eta_c=eta_c,
+            eta_m=eta_m,
+            repair_prob=repair_prob,
+            local_search_prob=local_search_prob,
+        )
         return ControlAction(
             generation=state.generation,
             mutation_prob=mutation,
             crossover_prob=crossover,
             reason=reason,
-            requested_params=OperatorParams(
-                mutation_prob=mutation,
-                crossover_prob=crossover,
-                eta_c=eta_c,
-                eta_m=eta_m,
-                repair_prob=repair_prob,
-                local_search_prob=local_search_prob,
-            ).to_dict(),
-            applied_params=OperatorParams(
-                mutation_prob=mutation,
-                crossover_prob=crossover,
-                eta_c=eta_c,
-                eta_m=eta_m,
-                repair_prob=repair_prob,
-                local_search_prob=local_search_prob,
-            ).active_params(capabilities),
+            requested_params=requested_params.to_dict(),
+            applied_params=requested_params.active_params(capabilities),
             capabilities=capabilities.to_dict(),
             control_state=control_state,
             reason_detail=reason_detail,
@@ -210,7 +249,7 @@ class RuleBasedController:
 
 
 class LLMChainController:
-    """可组合的 控制器 使用 analyst -> strategist -> actuator 链."""
+    """Composable controller built from analyst -> strategist -> actuator."""
 
     def __init__(
         self,
@@ -237,6 +276,7 @@ class LLMChainController:
         current_params: OperatorParams,
         capabilities: OperatorCapabilities,
     ) -> ControlAction:
+        """Run the full reasoning chain and return a structured action."""
         diagnosis = self.analyst.analyze(state=state, recent_experiences=recent_experiences)
         strategy = self.strategist.plan(diagnosis)
         return self.actuator.act(
@@ -249,14 +289,20 @@ class LLMChainController:
 
 @dataclass(slots=True)
 class _PendingExperience:
-    """在下一状态可用前保存内部转移的占位对象."""
+    """Internal placeholder for a transition awaiting its next state."""
 
     state: ParetoState
     action: ControlAction
 
 
 class ClosedLoopRunner:
-    """协调优化器、感知、控制策略与轻量日志."""
+    """Coordinate optimizer, sensor, controller, and lightweight logging.
+
+    The runner owns the experiment timeline. It does not inspect low-level
+    genomes or encode problem-specific semantics; it only advances generations,
+    senses state, triggers control at configured intervals, and records the
+    resulting trajectory.
+    """
 
     def __init__(
         self,
@@ -278,7 +324,7 @@ class ClosedLoopRunner:
         self.reward_config = reward_config or RewardConfig()
 
     def run(self, *, generations: int, reference_point: tuple[float, ...] | None = None) -> list[ParetoState]:
-        """执行 闭环 优化 与 返回 sensed 状态."""
+        """Execute the closed-loop optimization process and return sensed states."""
         if generations < 0:
             raise ValueError("generations must be >= 0")
         population = self.solver.initialize_population()
@@ -286,6 +332,8 @@ class ClosedLoopRunner:
         states: list[ParetoState] = []
         pending_experience: _PendingExperience | None = None
 
+        # Generation 0 is sensed before any controller intervention so the run
+        # always has a baseline state for logging and reward computation.
         initial_state = self.sensor.sense(
             generation=0,
             population=population,
@@ -307,10 +355,14 @@ class ClosedLoopRunner:
             states.append(state)
             self._log_state(state, self.solver.get_operator_params())
 
+            # A state-action pair becomes a full experience only after the next
+            # state has been observed.
             if pending_experience is not None:
                 self._finalize_experience(pending_experience, state)
                 pending_experience = None
 
+            # Do not schedule a new action after the final generation because no
+            # subsequent state would exist to complete the transition.
             if generation % self.controller.control_interval == 0 and generation < generations:
                 recent_experiences = self._recent_experiences()
                 action_started = time.perf_counter()
@@ -344,12 +396,14 @@ class ClosedLoopRunner:
         return states
 
     def _recent_experiences(self) -> list[ExperienceRecord]:
+        """Return the recent experience window expected by the controller."""
         if self.experience_pool is None:
             return []
         lookback = getattr(self.controller, "experience_lookback", 5)
         return self.experience_pool.recent(int(lookback))
 
     def _log_state(self, state: ParetoState, params: OperatorParams) -> None:
+        """Emit a state event enriched with the active operator snapshot."""
         if self.logger is None:
             return
         self.logger.log(
@@ -364,11 +418,13 @@ class ClosedLoopRunner:
         )
 
     def _log_action(self, action: ControlAction) -> None:
+        """Emit a controller action event when structured logging is enabled."""
         if self.logger is None:
             return
         self.logger.log({"event": "action", **action.to_dict()})
 
     def _finalize_experience(self, pending: _PendingExperience, next_state: ParetoState) -> None:
+        """Close a pending transition and persist it to memory/logging sinks."""
         if self.experience_pool is None and self.experience_logger is None:
             return
 
@@ -386,11 +442,17 @@ class ClosedLoopRunner:
 
 
 def compute_reward(*, state: ParetoState, next_state: ParetoState, config: RewardConfig) -> float:
-    """计算 M5 轻量 reward 从 adjacent 状态."""
+    """Compute the lightweight reward defined by the MVP memory milestone.
+
+    The reward favors hypervolume improvement and feasibility gains, while
+    penalizing the next state's average constraint violation.
+    """
     delta_hv = next_state.hv - state.hv
     delta_feasible_ratio = next_state.feasible_ratio - state.feasible_ratio
     return delta_hv + config.alpha * delta_feasible_ratio - config.beta * next_state.mean_cv
 
 
+
 def _clip(value: float, low: float, high: float) -> float:
+    """Clamp a value into the closed interval ``[low, high]``."""
     return max(low, min(high, value))
