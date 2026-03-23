@@ -138,6 +138,8 @@ ruff check .
 
 ## 文档索引
 
+- 快速开始与运行说明：`README.md`
+- 系统级详细项目说明：`ARCHITECTURE.md`
 - 研究规格：`SPEC.md`
 - 任务里程碑：`TASKS.md`
 - 技术栈说明：`TECH_STACK.md`

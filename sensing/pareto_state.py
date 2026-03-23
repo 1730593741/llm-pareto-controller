@@ -1,4 +1,10 @@
-"""Pareto-状态 感知 用于 NSGA-II 种群 snapshots."""
+"""Population-to-state sensing for the closed-loop controller.
+
+The optimizer operates on full populations, but the controller should react to a
+compact and stable summary. This module defines that summary as ``ParetoState``
+and computes a set of metrics that characterize improvement, feasibility,
+diversity, and front geometry.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +21,12 @@ from sensing.hypervolume import HypervolumeCalculator, SimplifiedHypervolumeCalc
 
 @dataclass(slots=True)
 class ParetoState:
-    """结构化快照 的 当前 优化器 search 状态."""
+    """Structured snapshot of the optimizer's search state.
+
+    Besides the basic MVP metrics such as hypervolume and feasible ratio, the
+    project also tracks a few richer geometric indicators that are useful for
+    later experiments and ablations.
+    """
 
     generation: int
     hv: float
@@ -31,12 +42,12 @@ class ParetoState:
     rank1_objectives: list[tuple[float, ...]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """序列化 状态 到 一个 dictionary 用于 日志."""
+        """Serialize the state into a dictionary suitable for JSON logging."""
         return asdict(self)
 
 
 class ParetoStateSensor:
-    """构建 ParetoState 从 当前 种群，并带有 可替换 指标."""
+    """Build ``ParetoState`` objects from population snapshots."""
 
     def __init__(self, hv_calculator: HypervolumeCalculator | None = None) -> None:
         self._hv_calculator = hv_calculator or SimplifiedHypervolumeCalculator()
@@ -50,7 +61,11 @@ class ParetoStateSensor:
         reference_point: tuple[float, ...] | None = None,
         stagnation_tolerance: float = 1e-12,
     ) -> ParetoState:
-        """生成 ParetoState 从 当前 种群 与 previous 状态."""
+        """Generate a structured state from the current population.
+
+        ``previous_state`` is optional but recommended, because it enables the
+        sensor to compute both ``delta_hv`` and the stagnation counter.
+        """
         if generation < 0:
             raise ValueError("generation must be >= 0")
 
@@ -95,8 +110,9 @@ class ParetoStateSensor:
         )
 
 
+
 def _compute_rank1_ratio(population: list[Individual]) -> float:
-    """计算第一前沿个体比例 在 该 given 种群."""
+    """Compute the fraction of individuals that lie on the first front."""
     if not population:
         return 0.0
 
@@ -104,13 +120,15 @@ def _compute_rank1_ratio(population: list[Individual]) -> float:
     return rank1_size / len(population)
 
 
+
 def _rank1_individuals(population: list[Individual]) -> list[Individual]:
-    """返回 所有 非支配 (rank-1) 个体 且不修改 rank."""
+    """Return all nondominated individuals without mutating stored ranks."""
     return [candidate for candidate in population if _is_nondominated(candidate, population)]
 
 
+
 def _is_nondominated(candidate: Individual, population: list[Individual]) -> bool:
-    """返回 True if no other 个体 dominates 该 candidate."""
+    """Return ``True`` when no other individual dominates ``candidate``."""
     for other in population:
         if other is candidate:
             continue
@@ -119,11 +137,13 @@ def _is_nondominated(candidate: Individual, population: list[Individual]) -> boo
     return True
 
 
+
 def _compute_diversity_score(objectives: list[tuple[float, ...]]) -> float:
-    """计算简单的目标空间多样性分数.
-    
-        该 MVP 指标为到质心的平均欧氏距离。
-        """
+    """Estimate objective-space diversity via mean distance to the centroid.
+
+    This metric is intentionally simple and cheap to compute every generation,
+    making it suitable for the control loop's online sensing step.
+    """
     if len(objectives) <= 1:
         return 0.0
 
@@ -133,18 +153,19 @@ def _compute_diversity_score(objectives: list[tuple[float, ...]]) -> float:
     return float(np.mean(distances))
 
 
+
 def _compute_crowding_entropy(rank1_individuals: list[Individual], eps: float = 1e-12) -> float:
-    """计算 rank-1 局部邻域距离的熵.
-    
-        步骤：
-        1) For each rank-1 点, 计算 目标-space nearest-neighbor 距离.
-        2) Normalize distances 转换为 一个 概率 mass function.
-        3) 返回 normalized Shannon entropy 在 [0, 1].
-    
-        回退规则：
-        - ``len(rank1_individuals) < 3`` -> ``0.0`` (结构不足).
-        - 所有 nearest-neighbor distances 为 (near) zero -> ``0.0``.
-        """
+    """Measure how evenly spread rank-1 points are in objective space.
+
+    Steps:
+    1. For each rank-1 point, compute the nearest-neighbor distance.
+    2. Normalize those distances into a probability mass function.
+    3. Return normalized Shannon entropy in ``[0, 1]``.
+
+    Fallback behavior:
+    - fewer than three rank-1 points -> ``0.0``;
+    - near-zero aggregate spacing -> ``0.0``.
+    """
     if len(rank1_individuals) < 3:
         return 0.0
 
@@ -170,12 +191,13 @@ def _compute_crowding_entropy(rank1_individuals: list[Individual], eps: float = 
     return float(np.clip(entropy / normalizer, 0.0, 1.0))
 
 
+
 def _compute_decision_diversity(population: list[Individual]) -> float:
-    """通过归一化 Hamming 距离均值计算决策空间多样性.
-    
-        该 分配 encoding 为 discrete (任务 -> 资源 索引), so Euclidean
-        距离 为 不 appropriate. We therefore 使用 per-position mismatch ratio.
-        """
+    """Measure decision-space diversity with normalized Hamming distance.
+
+    Assignment-style genomes are discrete vectors, so mismatch ratio is more
+    interpretable here than Euclidean distance.
+    """
     if len(population) <= 1:
         return 0.0
 
@@ -189,8 +211,9 @@ def _compute_decision_diversity(population: list[Individual]) -> float:
     return float(np.mean(np.asarray(distances, dtype=float)))
 
 
+
 def _normalized_hamming(lhs: list[int], rhs: list[int]) -> float:
-    """返回带长度不匹配惩罚的归一化 Hamming 距离."""
+    """Return normalized Hamming distance with a length-mismatch penalty."""
     max_len = max(len(lhs), len(rhs))
     if max_len == 0:
         return 0.0
@@ -201,28 +224,24 @@ def _normalized_hamming(lhs: list[int], rhs: list[int]) -> float:
     return mismatches / max_len
 
 
+
 def _compute_front_separation(
     population: list[Individual],
     rank1_individuals: list[Individual],
     eps: float = 1e-12,
 ) -> float:
-    """衡量 rank-1 与被支配个体之间的分离度.
-    
-        Multi-目标 replacement 的 单个-目标 ``Dratio``:
-        - ``inter``: 均值 nearest 目标-space 距离 从 dominated 点
-          到 该 rank-1 set.
-        - ``intra``: 均值 pairwise 距离 within 该 rank-1 set.
-        - ``d_front = inter / (inter + intra + eps)`` 在 ``[0, 1]``.
-    
-        解释：
-        - high 值: dominated solutions 为 far away while rank-1 前沿 remains
-          compact.
-        - low 值: dominated 与 rank-1 solutions 为 mixed.
-    
-        回退规则：
-        - no rank-1 (only possible 用于 空 种群): ``0.0``.
-        - 所有 个体 为 rank-1: ``1.0``.
-        """
+    """Quantify how distinctly separated rank-1 points are from dominated ones.
+
+    This is a multi-objective analogue of a front-separation ratio:
+
+    - ``inter``: mean nearest distance from dominated points to the rank-1 set;
+    - ``intra``: mean pairwise distance within the rank-1 set;
+    - ``d_front = inter / (inter + intra + eps)`` in ``[0, 1]``.
+
+    Interpretation:
+    - high values mean the front is compact and clearly separated;
+    - low values mean dominated and rank-1 points are intermixed.
+    """
     if not rank1_individuals:
         return 0.0
 
@@ -247,8 +266,9 @@ def _compute_front_separation(
     return float(np.clip(np.nan_to_num(score, nan=0.0, posinf=1.0, neginf=0.0), 0.0, 1.0))
 
 
+
 def _default_reference_point(objectives: list[tuple[float, ...]]) -> tuple[float, ...]:
-    """构建 一个 保守的默认 reference 点 从 种群 目标."""
+    """Construct a conservative default hypervolume reference point."""
     if not objectives:
         return (1.0, 1.0)
 
