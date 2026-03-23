@@ -1,4 +1,4 @@
-"""Smoke tests for complex constrained assignment benchmarks."""
+"""冒烟测试s 用于 complex constrained 分配 基准问题."""
 
 from __future__ import annotations
 

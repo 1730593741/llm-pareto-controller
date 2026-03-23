@@ -1,4 +1,4 @@
-"""Smoke test for preset matrix runner."""
+"""冒烟测试 用于 preset 矩阵 运行器."""
 
 from __future__ import annotations
 

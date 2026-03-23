@@ -1,1 +1,1 @@
-"""Optimization algorithm package namespace."""
+"""优化算法包命名空间."""

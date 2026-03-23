@@ -1,4 +1,4 @@
-"""Tests for simplified hypervolume sensing interface."""
+"""用于测试 simplified hypervolume 感知 接口."""
 
 from sensing.hypervolume import SimplifiedHypervolumeCalculator, compute_hypervolume
 

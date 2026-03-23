@@ -1,4 +1,4 @@
-"""Stage-3 tests for the DWTA problem package."""
+"""Stage-3 测试 用于 该 DWTA 问题包."""
 
 from __future__ import annotations
 

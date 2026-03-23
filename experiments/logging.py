@@ -1,4 +1,4 @@
-"""Experiment-level logging helpers for M7 artifact organization."""
+"""实验级日志辅助工具 用于 M7 artifact organization."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def split_event_stream(*, events_path: Path, state_log_path: Path, action_log_path: Path) -> None:
-    """Split the unified event stream into dedicated state/action JSONL files."""
+    """Split 该 unified 事件 stream 转换为 dedicated 状态/动作 JSONL files."""
     state_log_path.parent.mkdir(parents=True, exist_ok=True)
     action_log_path.parent.mkdir(parents=True, exist_ok=True)
 

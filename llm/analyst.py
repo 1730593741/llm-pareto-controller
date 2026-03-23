@@ -1,4 +1,4 @@
-"""Analyst role: summarize Pareto state and recent experiences into diagnostics."""
+"""Analyst 角色: 总结 Pareto 状态 与 近期经验 转换为 诊断信息."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisResult(BaseModel):
-    """Structured diagnosis consumed by the strategist."""
+    """Structured diagnosis consumed 通过 该 strategist."""
 
     control_state: ControlState
     reason: str
@@ -26,7 +26,7 @@ class AnalysisResult(BaseModel):
 
 
 class Analyst:
-    """Build diagnosis object from state and recent experiences."""
+    """构建 diagnosis object 从 状态 与 近期经验."""
 
     def __init__(self, client: LLMClient, prompt_path: str = "llm/prompts/analyst.txt") -> None:
         self.client = client

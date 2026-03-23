@@ -1,4 +1,4 @@
-"""Tests for unified LLM client mock/real modes and failure protections."""
+"""用于测试 unified LLM client 模拟/真实 模式 与 failure protections."""
 
 from __future__ import annotations
 

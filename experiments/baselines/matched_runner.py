@@ -1,4 +1,4 @@
-"""Helpers to run matched experiments with aligned seeds/benchmarks/optimizer settings."""
+"""Helpers 到 运行 matched 实验，并带有 aligned seeds/基准问题/优化器 settings."""
 
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def run_matched_experiments(
     benchmark: str = "small_complex",
     methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Run matched method comparisons under a single seed + benchmark setting."""
+    """运行 matched 方法 comparisons 在 一个 单个 种子 + 基准问题 setting."""
     if benchmark not in _BENCHMARK_CONFIGS:
         raise ValueError(f"Unsupported benchmark '{benchmark}'")
 
@@ -118,7 +118,7 @@ def run_matched_seed_sweep(
     benchmark: str = "small_complex",
     methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[int, dict[str, dict[str, Any]]]:
-    """Run matched comparisons for multiple seeds under one benchmark."""
+    """运行 matched comparisons 用于 multiple seeds 在 一个 基准问题."""
     root = Path(output_root)
     results: dict[int, dict[str, dict[str, Any]]] = {}
     for seed in seeds:
@@ -142,7 +142,7 @@ def run_matched_matrix(
     population_size: int,
     methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, dict[int, dict[str, dict[str, Any]]]]:
-    """Run full matched matrix across benchmark x seed x method."""
+    """运行 full matched 矩阵 跨 基准问题 x 种子 x 方法."""
     root = Path(output_root)
     matrix_results: dict[str, dict[int, dict[str, dict[str, Any]]]] = {}
     for benchmark in benchmarks:

@@ -1,4 +1,4 @@
-"""Precomputation utilities for DWTA compatibility and lethality matrices."""
+"""预计算工具 用于 DWTA 兼容性 与 lethality matrices."""
 
 from __future__ import annotations
 
@@ -11,5 +11,5 @@ def build_precomputed_matrices(
     weapons: list[Weapon],
     targets: list[Target],
 ) -> DWTABenchmarkData:
-    """Backward-compatible entrypoint for DWTA setup-time preprocessing."""
+    """向后兼容的入口 用于 DWTA setup-time preprocessing."""
     return build_scenario_matrices(munitions, weapons, targets)

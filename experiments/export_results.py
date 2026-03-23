@@ -1,4 +1,4 @@
-"""Aggregate experiment summaries into machine-readable exports and paper-table inputs."""
+"""汇总实验摘要 转换为 machine-readable exports 与 paper-table inputs."""
 
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _to_row(summary: dict[str, Any], summary_path: Path) -> dict[str, Any]:
 
 
 def collect_rows(runs_root: str | Path) -> list[dict[str, Any]]:
-    """Collect per-run flat rows from all summary artifacts under a run root."""
+    """收集 per-运行 扁平 rows 从 所有 摘要 artifacts 在 一个 运行 root."""
     root = Path(runs_root)
     rows: list[dict[str, Any]] = []
     for summary_path in _iter_summary_paths(root):
@@ -69,7 +69,7 @@ def _aggregate(values: list[float]) -> dict[str, Any]:
 
 
 def build_aggregates(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build grouped aggregates for method and method+benchmark views."""
+    """构建 分组的 aggregates 用于 方法 与 方法+基准问题 views."""
     by_method: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     by_method_benchmark: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     metric_fields = ("hv", "igd_plus", "spacing", "spread", "feasible_ratio", "runtime", "llm_overhead")
@@ -107,7 +107,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fields: tuple[str, ...]) 
 
 
 def export_results(*, runs_root: str | Path, output_dir: str | Path) -> dict[str, str]:
-    """Export flat and aggregated results to csv/json + paper-table input csv files."""
+    """Export 扁平 与 aggregated results 到 csv/json + paper-table input csv files."""
     rows = collect_rows(runs_root)
     aggregates = build_aggregates(rows)
     out = Path(output_dir)

@@ -1,4 +1,4 @@
-"""Tests for M4/M5 rule-based closed-loop runner."""
+"""用于测试 M4/M5 规则-based 闭环 运行器."""
 
 import pytest
 
@@ -11,7 +11,7 @@ from sensing.pareto_state import ParetoStateSensor
 
 
 class InMemoryLogger:
-    """Collect events for assertions in tests."""
+    """收集 事件 用于 assertions 在 测试."""
 
     def __init__(self) -> None:
         self.events: list[dict[str, object]] = []
@@ -21,7 +21,7 @@ class InMemoryLogger:
 
 
 class InMemoryExperienceLogger:
-    """Collect experience records for assertions in tests."""
+    """收集 experience records 用于 assertions 在 测试."""
 
     def __init__(self) -> None:
         self.records: list[object] = []
@@ -31,7 +31,7 @@ class InMemoryExperienceLogger:
 
 
 class RequestedAppliedDivergenceController:
-    """Controller that emits divergent requested/applied params for regression tests."""
+    """Controller 该 emits divergent requested/applied params 用于 regression 测试."""
 
     control_interval = 1
 

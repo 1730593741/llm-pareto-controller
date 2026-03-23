@@ -1,4 +1,4 @@
-"""Smoke tests for result export pipeline."""
+"""冒烟测试s 用于 result export pipeline."""
 
 from __future__ import annotations
 

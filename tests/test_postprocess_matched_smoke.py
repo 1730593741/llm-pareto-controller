@@ -1,4 +1,4 @@
-"""Smoke test for matched post-processing aggregation script."""
+"""冒烟测试 用于 matched post-processing aggregation script."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Domain models and bundle types for Dynamic Weapon-Target Assignment (DWTA)."""
+"""领域模型与打包类型 用于 Dynamic Weapon-Target Assignment (DWTA)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class MunitionType:
-    """Munition characteristics shared by mounted weapons."""
+    """Munition characteristics shared 通过 mounted Weapons."""
 
     id: str
     max_range: float
@@ -17,7 +17,7 @@ class MunitionType:
 
 @dataclass(frozen=True, slots=True)
 class Weapon:
-    """Weapon platform with fixed position and mounted munition type."""
+    """Weapon platform，并带有 fixed position 与 mounted Munition type."""
 
     id: str
     x: float
@@ -28,7 +28,7 @@ class Weapon:
 
 @dataclass(frozen=True, slots=True)
 class Target:
-    """Target definition with location, required damage, and exposure window."""
+    """Target definition，并带有 location, 必需的 damage, 与 exposure window."""
 
     id: str
     x: float
@@ -39,7 +39,7 @@ class Target:
 
 @dataclass(frozen=True, slots=True)
 class DWTABenchmarkData:
-    """Precomputed DWTA arrays consumed by the NSGA-II solver."""
+    """Precomputed DWTA arrays consumed 通过 该 NSGA-II 求解器."""
 
     n_weapons: int
     n_targets: int

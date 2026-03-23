@@ -1,4 +1,4 @@
-"""Experience pool primitives for M5 memory-enabled closed-loop control."""
+"""Experience pool 基础组件 用于 M5 记忆-enabled 闭环 控制."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(slots=True)
 class ExperienceRecord:
-    """A single transition tuple captured from one control cycle."""
+    """从一次控制周期中捕获的单条转移元组."""
 
     state: dict[str, Any]
     action: dict[str, Any]
@@ -16,12 +16,12 @@ class ExperienceRecord:
     next_state: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the record for storage backends."""
+        """序列化 该 记录 用于 存储后端."""
         return asdict(self)
 
 
 class ExperiencePool:
-    """In-memory sliding window storage for recent control experiences."""
+    """内存中的滑动窗口存储 用于 recent 控制 experiences."""
 
     def __init__(self, max_size: int = 100) -> None:
         if max_size <= 0:
@@ -30,20 +30,20 @@ class ExperiencePool:
         self._records: list[ExperienceRecord] = []
 
     def append(self, record: ExperienceRecord) -> None:
-        """Add one experience and enforce sliding-window trimming."""
+        """添加一条经验并执行滑动窗口裁剪."""
         self._records.append(record)
         overflow = len(self._records) - self.max_size
         if overflow > 0:
             self._records = self._records[overflow:]
 
     def recent(self, n: int) -> list[ExperienceRecord]:
-        """Return at most the last ``n`` records in chronological order."""
+        """返回 at most 该 last ``n`` records 在 时间顺序."""
         if n <= 0:
             return []
         return self._records[-n:]
 
     def get_recent(self, n: int) -> list[ExperienceRecord]:
-        """Alias kept for future caller compatibility."""
+        """为未来调用方兼容性保留的别名."""
         return self.recent(n)
 
     def __len__(self) -> int:

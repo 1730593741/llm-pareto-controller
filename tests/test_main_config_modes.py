@@ -1,4 +1,4 @@
-"""Tests for M7 config modes and runtime outputs."""
+"""用于测试 M7 配置 模式 与 运行时 输出."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for lightweight storage backends."""
+"""用于测试 轻量 存储后端."""
 
 import json
 

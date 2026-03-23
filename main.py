@@ -1,4 +1,4 @@
-"""Run configurable closed-loop NSGA-II experiments."""
+"""运行可配置的闭环 NSGA-II 实验."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ from sensing.pareto_state import ParetoStateSensor
 
 
 class DWTAMunitionConfig(BaseModel):
-    """DWTA munition configuration item."""
+    """DWTA Munition 配置项."""
 
     id: str
     max_range: float
@@ -63,7 +63,7 @@ class DWTAMunitionConfig(BaseModel):
 
 
 class DWTAWeaponConfig(BaseModel):
-    """DWTA weapon configuration item."""
+    """DWTA Weapon 配置项."""
 
     id: str
     x: float
@@ -81,7 +81,7 @@ class DWTAWeaponConfig(BaseModel):
 
 
 class DWTATargetConfig(BaseModel):
-    """DWTA target configuration item."""
+    """DWTA Target 配置项."""
 
     id: str
     x: float
@@ -105,7 +105,7 @@ class DWTATargetConfig(BaseModel):
 
 
 class DWTAPrecomputedConfig(BaseModel):
-    """DWTA precomputed matrix payload for direct runtime loading."""
+    """DWTA precomputed 矩阵 payload 用于 direct 运行时 loading."""
 
     ammo_capacities: list[int]
     compatibility_matrix: list[list[int]]
@@ -144,7 +144,7 @@ class DWTAPrecomputedConfig(BaseModel):
 
 
 class ProblemConfig(BaseModel):
-    """Problem specification for task-assignment and DWTA benchmarks."""
+    """问题规格 用于 任务-分配 与 DWTA 基准问题."""
 
     problem_type: Literal["task_assignment", "dwta"] = "task_assignment"
 
@@ -167,7 +167,7 @@ class ProblemConfig(BaseModel):
 
     @property
     def resolved_munition_types(self) -> list[DWTAMunitionConfig]:
-        """Return DWTA munition list with backwards compatibility for old key names."""
+        """返回 DWTA Munition list，并带有 向后兼容 用于 old key names."""
         return self.munition_types or self.munitions or []
 
     @model_validator(mode="after")
@@ -239,7 +239,7 @@ class ProblemConfig(BaseModel):
 
 
 class MemoryConfig(BaseModel):
-    """M5 memory and reward-related configuration."""
+    """M5 记忆 与 reward-related configuration."""
 
     enabled: bool = True
     memory_window: int = 100
@@ -249,14 +249,14 @@ class MemoryConfig(BaseModel):
 
 
 class ControllerModeConfig(BaseModel):
-    """Controller mode switch and mode-specific options."""
+    """Controller 模式 switch 与 模式-specific options."""
 
     mode: Literal["rule", "mock_llm", "real_llm"] = "rule"
     experience_lookback: int = 5
 
 
 class LLMRuntimeConfig(BaseModel):
-    """Config schema for LLM runtime backend."""
+    """Config schema 用于 LLM 运行时 backend."""
 
     provider: str = "openai"
     model: str = "gpt-mock"
@@ -270,7 +270,7 @@ class LLMRuntimeConfig(BaseModel):
 
 
 class LoggingConfig(BaseModel):
-    """Output layout for reproducible experiment artifacts."""
+    """Output layout 用于 可复现的 实验 artifacts."""
 
     output_dir: str = "experiments/logs/default"
     events_file: str = "events.jsonl"
@@ -282,7 +282,7 @@ class LoggingConfig(BaseModel):
 
 
 class ExperimentMetaConfig(BaseModel):
-    """Lightweight metadata persisted into summary output."""
+    """Lightweight 元数据 persisted 转换为 摘要 输出."""
 
     name: str = "default"
     seed: int | None = None
@@ -291,14 +291,14 @@ class ExperimentMetaConfig(BaseModel):
 
 
 class EvaluationConfig(BaseModel):
-    """Evaluation settings for paper-level metrics and reference-front provenance."""
+    """Evaluation settings 用于 论文级 指标 与 reference-前沿 provenance."""
 
     reference_front_mode: Literal["auto", "true_front_file", "intra_run"] = "auto"
     true_pareto_front_path: str | None = None
 
 
 class ExperimentConfig(BaseModel):
-    """Top-level experiment config parsed from YAML."""
+    """从 YAML 解析得到的顶层实验配置."""
 
     optimizer: NSGA2Config
     controller: RuleControllerConfig
@@ -314,7 +314,7 @@ class ExperimentConfig(BaseModel):
 
 @dataclass(slots=True)
 class RunArtifacts:
-    """Resolved file paths for one concrete run."""
+    """已解析的文件路径 用于 一个 concrete 运行."""
 
     output_dir: Path
     events_path: Path
@@ -327,7 +327,7 @@ class RunArtifacts:
 
 @dataclass(slots=True)
 class RuntimeBundle:
-    """Assembled runtime pieces used by main and baseline wrappers."""
+    """组装好的运行时组件 用于 main 与 基线 wrappers."""
 
     config: ExperimentConfig
     solver: NSGA2Solver
@@ -336,14 +336,14 @@ class RuntimeBundle:
 
 
 def load_config(path: str | Path) -> ExperimentConfig:
-    """Load experiment config from a YAML file."""
+    """从 YAML 文件加载实验配置."""
     with Path(path).open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return ExperimentConfig.model_validate(raw)
 
 
 def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
-    """Create NSGA-II solver from structured config."""
+    """从结构化配置创建 NSGA-II 求解器."""
     if problem.problem_type == "dwta":
         if problem.precomputed is not None:
             dwta_data = DWTABenchmarkData(
@@ -412,7 +412,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
 
 
 def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChainController:
-    """Build rule or LLM controller by mode without changing runner API."""
+    """按模式构建规则或 LLM 控制器，而不改变 运行器 API."""
     mode = config.controller_mode.mode
     if mode == "rule":
         return RuleBasedController(config.controller)
@@ -458,7 +458,7 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
 
 
 def resolve_artifacts(config: ExperimentConfig) -> RunArtifacts:
-    """Resolve and create output paths for one run."""
+    """为一次运行解析并创建输出路径."""
     output_dir = Path(config.logging.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -482,7 +482,7 @@ def resolve_artifacts(config: ExperimentConfig) -> RunArtifacts:
 
 
 def build_runtime(config: ExperimentConfig) -> RuntimeBundle:
-    """Assemble solver, controller, runner, and output artifacts."""
+    """组装 求解器、控制器、运行器 与输出产物."""
     artifacts = resolve_artifacts(config)
     solver = build_solver(config.problem, config.optimizer)
     sensor = ParetoStateSensor()
@@ -508,7 +508,7 @@ def build_runtime(config: ExperimentConfig) -> RuntimeBundle:
 
 
 def _config_identity(config: ExperimentConfig, config_path: str | Path) -> tuple[str, str]:
-    """Build deterministic fingerprint and run id from config snapshot inputs."""
+    """根据配置快照输入构建确定性的指纹与运行 ID."""
     material = {
         "source_config_path": str(config_path),
         "resolved_config": config.model_dump(mode="json"),
@@ -536,7 +536,7 @@ def _write_config_snapshot(path: Path, config: ExperimentConfig, config_path: st
 
 
 def _reset_run_logs(artifacts: RunArtifacts) -> None:
-    """Reset append-only logs so each run keeps isolated metrics/actions counts."""
+    """重置追加日志，使每次运行的 指标/动作 计数彼此隔离."""
     for path in [
         artifacts.events_path,
         artifacts.generation_log_path,
@@ -593,7 +593,7 @@ def _resolve_reference_front(config: ExperimentConfig, generation_events: list[d
 
 
 def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dict[str, Any]:
-    """Run one experiment and persist snapshot + summary outputs."""
+    """运行一次实验并持久化快照与摘要输出."""
     config = load_config(config_path)
     runtime = build_runtime(config)
     _reset_run_logs(runtime.artifacts)
@@ -692,7 +692,7 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
 
 
 def main(config_path: str = "experiments/configs/default.yaml") -> None:
-    """Run closed loop and print final summary."""
+    """运行闭环并打印最终摘要."""
     summary = run_experiment(config_path)
     print(
         "Run complete | "
@@ -704,7 +704,7 @@ def main(config_path: str = "experiments/configs/default.yaml") -> None:
 
 
 def parse_cli_args(argv: list[str] | None = None) -> str:
-    """Parse CLI args and return resolved config path."""
+    """解析 CLI 参数并返回解析后的配置路径."""
     parser = argparse.ArgumentParser(description="Run closed-loop NSGA-II experiment")
     parser.add_argument("config_path", nargs="?", default=None, help="Path to YAML experiment config")
     parser.add_argument("--config", dest="config_flag", default=None, help="Path to YAML experiment config")

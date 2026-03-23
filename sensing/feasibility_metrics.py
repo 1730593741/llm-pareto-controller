@@ -1,4 +1,4 @@
-"""Feasibility and constraint-violation metrics for population sensing."""
+"""可行性与约束违反指标 用于 种群 感知."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from collections.abc import Sequence
 
 
 def feasible_ratio(violations: Sequence[float], *, tolerance: float = 0.0) -> float:
-    """Return the fraction of solutions whose violation is within tolerance."""
+    """返回 该 fraction 的 solutions whose 违反 为 within tolerance."""
     if not violations:
         return 0.0
     feasible_count = sum(1 for value in violations if value <= tolerance)
@@ -14,14 +14,14 @@ def feasible_ratio(violations: Sequence[float], *, tolerance: float = 0.0) -> fl
 
 
 def mean_constraint_violation(violations: Sequence[float]) -> float:
-    """Return the arithmetic mean of non-negative constraint violations."""
+    """返回 该 arithmetic 均值 的 non-negative 约束 violations."""
     if not violations:
         return 0.0
     return sum(max(0.0, value) for value in violations) / len(violations)
 
 
 def max_constraint_violation(violations: Sequence[float]) -> float:
-    """Return the maximum non-negative constraint violation."""
+    """返回 该 maximum non-negative 约束 违反."""
     if not violations:
         return 0.0
     return max(max(0.0, value) for value in violations)

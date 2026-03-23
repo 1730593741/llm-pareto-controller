@@ -1,4 +1,4 @@
-"""Scenario preprocessing for Dynamic Weapon-Target Assignment (DWTA)."""
+"""场景预处理 用于 Dynamic Weapon-Target Assignment (DWTA)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from problems.dwta.model import DWTABenchmarkData, MunitionType, Target, Weapon
 
 
 def distance(weapon: Weapon, target: Target) -> float:
-    """Compute Euclidean distance between one weapon and one target."""
+    """计算单个 Weapon 与单个 Target 之间的欧氏距离."""
     return math.hypot(weapon.x - target.x, weapon.y - target.y)
 
 
@@ -17,12 +17,12 @@ def build_scenario_matrices(
     weapons: list[Weapon],
     targets: list[Target],
 ) -> DWTABenchmarkData:
-    """Precompute compatibility and lethality matrices once at setup time.
-
-    Compatibility rule:
-    - distance <= max_range
-    - flight_time in [target.time_window.start, target.time_window.end]
-    """
+    """Precompute 兼容性 与 lethality matrices once at setup time.
+    
+        Compatibility 规则:
+        - 距离 <= max_range
+        - flight_time 在 [Target.time_window.start, Target.time_window.end]
+        """
     munition_by_id = {munition.id: munition for munition in munition_types}
 
     compatibility_matrix: list[list[int]] = []

@@ -1,4 +1,4 @@
-"""Repair heuristics for DWTA integer shot-allocation genomes."""
+"""修复启发式 用于 DWTA 整数 shot-allocation genomes."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ def _removal_priority(
     required_damage: list[float] | None,
     lethality: float,
 ) -> tuple[int, float, int]:
-    """Return deterministic priority key for removing one shot.
-
-    Priority order:
-    1) shots on oversaturated targets (higher oversaturation removed first),
-    2) lower lethality efficiency removed first,
-    3) lower target index for deterministic tie-breaking.
-    """
+    """返回 确定性 priority key 用于 removing 一个 shot.
+    
+        Priority order:
+        1) shots on oversaturated Targets (higher oversaturation removed first),
+        2) lower lethality efficiency removed first,
+        3) lower Target 索引 用于 确定性 tie-breaking.
+        """
     oversaturation = 0.0
     if required_damage is not None:
         oversaturation = max(0.0, inflicted_damage[target_idx] - float(required_damage[target_idx]))
@@ -38,11 +38,11 @@ def repair_allocation(
     lethality_matrix: list[list[float]] | None = None,
     required_damage: list[float] | None = None,
 ) -> list[int]:
-    """Repair incompatible or over-capacity DWTA allocations.
-
-    The heuristic is deterministic and does not sample random choices. ``rng`` is
-    retained for backward-compatible function signatures used by the solver stack.
-    """
+    """Repair incompatible 或 over-capacity DWTA allocations.
+    
+        该 heuristic 为 确定性 与 does 不 sample 随机 choices. ``rng`` 为
+        retained 用于 backward-兼容的 function signatures 用于 该 求解器 stack.
+        """
     del rng
 
     n_weapons = len(ammo_capacities)

@@ -1,4 +1,4 @@
-"""Variation operators for NSGA-II genomes."""
+"""变异与交叉算子 用于 NSGA-II genomes."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def one_point_crossover(
     crossover_prob: float,
     rng: random.Random,
 ) -> tuple[Assignment, Assignment]:
-    """Perform one-point crossover for assignment genomes."""
+    """对 分配 genome 执行单点交叉."""
     if len(parent_a) != len(parent_b):
         raise ValueError("Parents must have the same genome length")
 
@@ -35,7 +35,7 @@ def mutate_assignment(
     mutation_prob: float,
     rng: random.Random,
 ) -> Assignment:
-    """Mutate assignment by random reset mutation per task gene."""
+    """对 分配 执行按任务基因的随机重置变异."""
     if n_resources <= 0:
         raise ValueError("n_resources must be positive")
 
@@ -55,7 +55,7 @@ def mutate_bounded_integers(
     mutation_prob: float,
     rng: random.Random,
 ) -> list[int]:
-    """Mutate integer genes with per-gene inclusive upper bounds."""
+    """对整数基因执行逐基因含上界变异."""
     if len(genome) != len(upper_bounds):
         raise ValueError("upper_bounds length must match genome length")
 
@@ -82,18 +82,18 @@ def matrix_block_crossover(
     rng: random.Random,
     eta_c: float | None = None,
 ) -> tuple[list[int], list[int]]:
-    """Perform matrix-aware block crossover for DWTA integer allocations.
-
-    The operator swaps contiguous matrix blocks along either the weapon axis
-    (row block) or the target axis (column block). This preserves integer
-    values by construction because only existing integer entries are copied.
-
-    ``eta_c`` is mapped to axis preference and kept backward-compatible with
-    the existing controller interface:
-    - ``eta_c is None``: 50% row-block and 50% column-block crossover.
-    - otherwise: ``P(row-block) = clamp(eta_c / 100, 0, 1)``.
-      Higher ``eta_c`` therefore biases toward weapon-dimension exchange.
-    """
+    """Perform 矩阵-aware block 交叉 用于 DWTA 整数 allocations.
+    
+        该 算子 swaps contiguous 矩阵 blocks along either 该 Weapon axis
+        (row block) 或 该 Target axis (column block). This preserves 整数
+        值 通过 construction because only existing 整数 entries 为 copied.
+    
+        ``eta_c`` 为 mapped 到 axis preference 与 kept backward-兼容的 并带有
+        该 existing 控制器 接口:
+        - ``eta_c 为 None``: 50% row-block 与 50% column-block 交叉.
+        - otherwise: ``P(row-block) = clamp(eta_c / 100, 0, 1)``.
+          Higher ``eta_c`` therefore biases toward Weapon-dimension exchange.
+        """
     if len(parent_a) != len(parent_b):
         raise ValueError("Parents must have the same genome length")
     if len(parent_a) != n_weapons * n_targets:
@@ -138,18 +138,18 @@ def mutate_dwta_allocation(
     eta_m: float | None,
     local_search_prob: float | None,
 ) -> list[int]:
-    """Mutate DWTA integer matrix with compatibility-aware edits.
-
-    Parameter mapping to preserve the unified controller interface:
-    - ``mutation_prob``: per-compatible-cell mutation trigger probability.
-    - ``mutation_step``: base integer mutation amplitude, usually driven by the
-      existing controller step-size schedule that updates ``mutation_prob``.
-    - ``eta_m``: controls mutation locality. Higher values produce smaller
-      integer steps; lower values allow larger step amplitudes.
-    - ``local_search_prob``: probability of using an in-row transfer move
-      (shift one or more rounds from target A to B for the same weapon).
-      Remaining probability uses integer +/- perturbation.
-    """
+    """Mutate DWTA 整数 矩阵，并带有 兼容性-aware edits.
+    
+        Parameter mapping 到 preserve 该 unified 控制器 接口:
+        - ``mutation_prob``: per-兼容的-cell 变异 trigger 概率.
+        - ``mutation_step``: base 整数 变异 amplitude, usually driven 通过 该
+          existing 控制器 step-size schedule 该 updates ``mutation_prob``.
+        - ``eta_m``: 控制s 变异 locality. Higher 值 produce smaller
+          整数 steps; lower 值 allow larger step amplitudes.
+        - ``local_search_prob``: 概率 的 使用 一个 在-row transfer move
+          (shift 一个 或 more rounds 从 Target A 到 B 用于 该 same Weapon).
+          Remaining 概率 uses 整数 +/- perturbation.
+        """
     if len(genome) != n_weapons * n_targets:
         raise ValueError("Genome length must equal n_weapons * n_targets")
     if len(compatibility_matrix) != n_weapons or any(len(row) != n_targets for row in compatibility_matrix):

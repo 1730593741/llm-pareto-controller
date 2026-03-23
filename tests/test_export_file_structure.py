@@ -1,4 +1,4 @@
-"""Verify exported file structure for paper-ready artifacts."""
+"""验证 exported file structure 用于 paper-ready artifacts."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Config-level ablation switches for quick M7 comparisons."""
+"""Config-level ablation switches 用于 quick M7 comparisons."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def apply_ablation_switches(
     output_path: str | Path,
     switches: dict[str, bool],
 ) -> None:
-    """Apply boolean ablation switches and write a derived YAML config."""
+    """Apply boolean ablation switches 与 write 一个 derived YAML 配置."""
     with Path(config_path).open("r", encoding="utf-8") as f:
         config: dict[str, Any] = yaml.safe_load(f)
 

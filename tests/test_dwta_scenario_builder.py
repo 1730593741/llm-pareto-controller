@@ -1,4 +1,4 @@
-"""Tests for DWTA scenario setup-time preprocessing and schema validation."""
+"""用于测试 DWTA scenario setup-time preprocessing 与 schema validation."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ def test_scenario_builder_compatibility_and_lethality_correctness() -> None:
         munition_types=[MunitionType(id="m1", max_range=10.0, flight_speed=2.0, lethality=3.5)],
         weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="m1", ammo_capacity=5)],
         targets=[
-            Target(id="t1", x=6.0, y=8.0, required_damage=3.0, time_window=(4.0, 6.0)),  # distance=10, flight=5
-            Target(id="t2", x=3.0, y=4.0, required_damage=2.0, time_window=(1.0, 3.0)),  # distance=5, flight=2.5
+            Target(id="t1", x=6.0, y=8.0, required_damage=3.0, time_window=(4.0, 6.0)),  # 距离=10, flight=5
+            Target(id="t2", x=3.0, y=4.0, required_damage=2.0, time_window=(1.0, 3.0)),  # 距离=5, flight=2.5
         ],
     )
 

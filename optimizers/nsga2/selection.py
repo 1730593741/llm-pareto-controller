@@ -1,4 +1,4 @@
-"""Selection components for constrained NSGA-II."""
+"""选择组件 用于 constrained NSGA-II."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from optimizers.nsga2.population import Individual
 
 
 def dominates(lhs: Individual, rhs: Individual) -> bool:
-    """Return constrained-domination relation for minimization objectives."""
+    """返回 约束支配关系 用于 minimization 目标."""
     if lhs.feasible and not rhs.feasible:
         return True
     if not lhs.feasible and rhs.feasible:
@@ -26,7 +26,7 @@ def dominates(lhs: Individual, rhs: Individual) -> bool:
 
 
 def non_dominated_sort(individuals: list[Individual]) -> list[list[Individual]]:
-    """Group individuals into Pareto fronts (rank 0, 1, ...)."""
+    """将个体分组为 Pareto 前沿 (rank 0, 1, ...)."""
     if not individuals:
         return []
 
@@ -67,7 +67,7 @@ def non_dominated_sort(individuals: list[Individual]) -> list[list[Individual]]:
 
 
 def assign_crowding_distance(front: list[Individual]) -> None:
-    """Assign crowding distance in-place for one front."""
+    """原地为一个 前沿 分配拥挤距离."""
     if not front:
         return
 
@@ -101,7 +101,7 @@ def assign_crowding_distance(front: list[Individual]) -> None:
 
 
 def tournament_pick(a: Individual, b: Individual, rng: random.Random) -> Individual:
-    """Pick one individual by rank, then crowding distance, then random tie-break."""
+    """按 rank、拥挤距离以及随机打破平局来选择一个个体."""
     if a.rank < b.rank:
         return a
     if b.rank < a.rank:
@@ -115,7 +115,7 @@ def tournament_pick(a: Individual, b: Individual, rng: random.Random) -> Individ
 
 
 def parent_selection(individuals: list[Individual], n_parents: int, rng: random.Random) -> list[Individual]:
-    """Select parents by binary tournament with replacement."""
+    """通过有放回二元锦标赛选择父代."""
     if n_parents <= 0:
         return []
     if len(individuals) < 2:
@@ -131,7 +131,7 @@ def parent_selection(individuals: list[Individual], n_parents: int, rng: random.
 
 
 def environmental_selection(individuals: list[Individual], population_size: int) -> list[Individual]:
-    """Select next generation using fronts then crowding distance."""
+    """先按 前沿 再按拥挤距离选择下一代."""
     fronts = non_dominated_sort(individuals)
     next_population: list[Individual] = []
 

@@ -1,4 +1,4 @@
-"""Tests for main configuration compatibility."""
+"""用于测试 main configuration 兼容性."""
 
 from pathlib import Path
 

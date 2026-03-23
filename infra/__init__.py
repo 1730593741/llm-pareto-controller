@@ -1,1 +1,1 @@
-"""Infrastructure utilities package scaffold."""
+"""基础设施工具包骨架."""

@@ -1,4 +1,4 @@
-"""Tests for NSGA-II variation operators."""
+"""用于测试 NSGA-II variation 算子."""
 
 import random
 

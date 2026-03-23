@@ -1,4 +1,4 @@
-"""Constraint checks for Dynamic Weapon-Target Assignment (DWTA)."""
+"""约束检查 用于 Dynamic Weapon-Target Assignment (DWTA)."""
 
 from __future__ import annotations
 
@@ -9,14 +9,14 @@ from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, t
 
 @dataclass(frozen=True, slots=True)
 class DWTAConstraintBreakdown:
-    """DWTA constraint decomposition used by feasibility metrics."""
+    """DWTA 约束分解 用于 可行性指标."""
 
     capacity: float = 0.0
     compatibility: float = 0.0
 
     @property
     def total(self) -> float:
-        """Return aggregate violation value."""
+        """返回 聚合 违反 值."""
         return self.capacity + self.compatibility
 
 
@@ -25,7 +25,7 @@ def capacity_violation(
     ammo_capacities: list[int],
     n_targets: int,
 ) -> float:
-    """Return total capacity overflow across all weapons."""
+    """返回 total capacity overflow 跨 所有 Weapons."""
     matrix = to_matrix(allocation, n_weapons=len(ammo_capacities), n_targets=n_targets)
     violation = 0.0
     for weapon_idx, ammo_capacity in enumerate(ammo_capacities):
@@ -39,7 +39,7 @@ def compatibility_violation(
     compatibility_matrix: list[list[int]],
     n_targets: int,
 ) -> float:
-    """Return total incompatible shot assignments."""
+    """返回 total incompatible shot assignments."""
     matrix = to_matrix(allocation, n_weapons=len(compatibility_matrix), n_targets=n_targets)
     violation = 0.0
     for weapon_idx, row in enumerate(compatibility_matrix):
@@ -57,7 +57,7 @@ def constraint_breakdown(
     compatibility_matrix: list[list[int]],
     n_targets: int,
 ) -> DWTAConstraintBreakdown:
-    """Return DWTA violation decomposition."""
+    """返回 DWTA 违反 decomposition."""
     return DWTAConstraintBreakdown(
         capacity=capacity_violation(allocation, ammo_capacities, n_targets),
         compatibility=compatibility_violation(allocation, compatibility_matrix, n_targets),

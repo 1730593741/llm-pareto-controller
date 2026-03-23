@@ -1,4 +1,4 @@
-"""Tests for feasibility and constraint-violation sensing metrics."""
+"""用于测试 可行性 与 约束-违反 感知 指标."""
 
 from sensing.feasibility_metrics import (
     feasible_ratio,

@@ -1,4 +1,4 @@
-"""LLM integration package scaffold."""
+"""LLM 集成包骨架."""
 
 from llm.actuator import Actuator
 from llm.analyst import Analyst

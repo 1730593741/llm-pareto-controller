@@ -1,4 +1,4 @@
-"""State sensing components for optimization-progress observation."""
+"""状态感知组件 用于 优化-progress observation."""
 
 from sensing.pareto_state import ParetoState, ParetoStateSensor
 

@@ -1,4 +1,4 @@
-"""Tests for unified four-state control semantics across LLM chain."""
+"""用于测试 unified four-状态 控制 semantics 跨 LLM chain."""
 
 from __future__ import annotations
 

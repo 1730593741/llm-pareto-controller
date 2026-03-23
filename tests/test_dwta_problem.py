@@ -1,4 +1,4 @@
-"""Tests for the DWTA benchmark package and solver integration."""
+"""用于测试 该 DWTA 基准问题 包 与 求解器 integration."""
 
 from __future__ import annotations
 

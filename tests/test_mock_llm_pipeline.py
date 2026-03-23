@@ -1,4 +1,4 @@
-"""Integration test for mock_llm closed-loop mode."""
+"""集成测试 用于 mock_llm 闭环 模式."""
 
 from pathlib import Path
 

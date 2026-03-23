@@ -1,4 +1,4 @@
-"""Pareto-state sensing for NSGA-II population snapshots."""
+"""Pareto-状态 感知 用于 NSGA-II 种群 snapshots."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from sensing.hypervolume import HypervolumeCalculator, SimplifiedHypervolumeCalc
 
 @dataclass(slots=True)
 class ParetoState:
-    """Structured snapshot of current optimizer search state."""
+    """结构化快照 的 当前 优化器 search 状态."""
 
     generation: int
     hv: float
@@ -31,12 +31,12 @@ class ParetoState:
     rank1_objectives: list[tuple[float, ...]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize state to a dictionary for logging."""
+        """序列化 状态 到 一个 dictionary 用于 日志."""
         return asdict(self)
 
 
 class ParetoStateSensor:
-    """Build ParetoState from current population with replaceable metrics."""
+    """构建 ParetoState 从 当前 种群，并带有 可替换 指标."""
 
     def __init__(self, hv_calculator: HypervolumeCalculator | None = None) -> None:
         self._hv_calculator = hv_calculator or SimplifiedHypervolumeCalculator()
@@ -50,7 +50,7 @@ class ParetoStateSensor:
         reference_point: tuple[float, ...] | None = None,
         stagnation_tolerance: float = 1e-12,
     ) -> ParetoState:
-        """Generate a ParetoState from current population and previous state."""
+        """生成 ParetoState 从 当前 种群 与 previous 状态."""
         if generation < 0:
             raise ValueError("generation must be >= 0")
 
@@ -96,7 +96,7 @@ class ParetoStateSensor:
 
 
 def _compute_rank1_ratio(population: list[Individual]) -> float:
-    """Compute ratio of first-front individuals in the given population."""
+    """计算第一前沿个体比例 在 该 given 种群."""
     if not population:
         return 0.0
 
@@ -105,12 +105,12 @@ def _compute_rank1_ratio(population: list[Individual]) -> float:
 
 
 def _rank1_individuals(population: list[Individual]) -> list[Individual]:
-    """Return all non-dominated (rank-1) individuals without mutating ranks."""
+    """返回 所有 非支配 (rank-1) 个体 且不修改 rank."""
     return [candidate for candidate in population if _is_nondominated(candidate, population)]
 
 
 def _is_nondominated(candidate: Individual, population: list[Individual]) -> bool:
-    """Return True if no other individual dominates the candidate."""
+    """返回 True if no other 个体 dominates 该 candidate."""
     for other in population:
         if other is candidate:
             continue
@@ -120,10 +120,10 @@ def _is_nondominated(candidate: Individual, population: list[Individual]) -> boo
 
 
 def _compute_diversity_score(objectives: list[tuple[float, ...]]) -> float:
-    """Compute a simple objective-space diversity score.
-
-    This MVP metric is the average Euclidean distance to the centroid.
-    """
+    """计算简单的目标空间多样性分数.
+    
+        该 MVP 指标为到质心的平均欧氏距离。
+        """
     if len(objectives) <= 1:
         return 0.0
 
@@ -134,17 +134,17 @@ def _compute_diversity_score(objectives: list[tuple[float, ...]]) -> float:
 
 
 def _compute_crowding_entropy(rank1_individuals: list[Individual], eps: float = 1e-12) -> float:
-    """Compute entropy of rank-1 local-neighborhood distances.
-
-    Steps:
-    1) For each rank-1 point, compute objective-space nearest-neighbor distance.
-    2) Normalize distances into a probability mass function.
-    3) Return normalized Shannon entropy in [0, 1].
-
-    Fallbacks:
-    - ``len(rank1_individuals) < 3`` -> ``0.0`` (insufficient structure).
-    - all nearest-neighbor distances are (near) zero -> ``0.0``.
-    """
+    """计算 rank-1 局部邻域距离的熵.
+    
+        步骤：
+        1) For each rank-1 点, 计算 目标-space nearest-neighbor 距离.
+        2) Normalize distances 转换为 一个 概率 mass function.
+        3) 返回 normalized Shannon entropy 在 [0, 1].
+    
+        回退规则：
+        - ``len(rank1_individuals) < 3`` -> ``0.0`` (结构不足).
+        - 所有 nearest-neighbor distances 为 (near) zero -> ``0.0``.
+        """
     if len(rank1_individuals) < 3:
         return 0.0
 
@@ -171,11 +171,11 @@ def _compute_crowding_entropy(rank1_individuals: list[Individual], eps: float = 
 
 
 def _compute_decision_diversity(population: list[Individual]) -> float:
-    """Compute decision-space diversity via mean normalized Hamming distance.
-
-    The assignment encoding is discrete (task -> resource index), so Euclidean
-    distance is not appropriate. We therefore use per-position mismatch ratio.
-    """
+    """通过归一化 Hamming 距离均值计算决策空间多样性.
+    
+        该 分配 encoding 为 discrete (任务 -> 资源 索引), so Euclidean
+        距离 为 不 appropriate. We therefore 使用 per-position mismatch ratio.
+        """
     if len(population) <= 1:
         return 0.0
 
@@ -190,7 +190,7 @@ def _compute_decision_diversity(population: list[Individual]) -> float:
 
 
 def _normalized_hamming(lhs: list[int], rhs: list[int]) -> float:
-    """Return normalized Hamming distance with length-mismatch penalty."""
+    """返回带长度不匹配惩罚的归一化 Hamming 距离."""
     max_len = max(len(lhs), len(rhs))
     if max_len == 0:
         return 0.0
@@ -206,23 +206,23 @@ def _compute_front_separation(
     rank1_individuals: list[Individual],
     eps: float = 1e-12,
 ) -> float:
-    """Measure separation between rank-1 and dominated individuals.
-
-    Multi-objective replacement of single-objective ``Dratio``:
-    - ``inter``: mean nearest objective-space distance from dominated points
-      to the rank-1 set.
-    - ``intra``: mean pairwise distance within the rank-1 set.
-    - ``d_front = inter / (inter + intra + eps)`` in ``[0, 1]``.
-
-    Interpretation:
-    - high value: dominated solutions are far away while rank-1 front remains
-      compact.
-    - low value: dominated and rank-1 solutions are mixed.
-
-    Fallbacks:
-    - no rank-1 (only possible for empty population): ``0.0``.
-    - all individuals are rank-1: ``1.0``.
-    """
+    """衡量 rank-1 与被支配个体之间的分离度.
+    
+        Multi-目标 replacement 的 单个-目标 ``Dratio``:
+        - ``inter``: 均值 nearest 目标-space 距离 从 dominated 点
+          到 该 rank-1 set.
+        - ``intra``: 均值 pairwise 距离 within 该 rank-1 set.
+        - ``d_front = inter / (inter + intra + eps)`` 在 ``[0, 1]``.
+    
+        解释：
+        - high 值: dominated solutions 为 far away while rank-1 前沿 remains
+          compact.
+        - low 值: dominated 与 rank-1 solutions 为 mixed.
+    
+        回退规则：
+        - no rank-1 (only possible 用于 空 种群): ``0.0``.
+        - 所有 个体 为 rank-1: ``1.0``.
+        """
     if not rank1_individuals:
         return 0.0
 
@@ -248,7 +248,7 @@ def _compute_front_separation(
 
 
 def _default_reference_point(objectives: list[tuple[float, ...]]) -> tuple[float, ...]:
-    """Build a conservative default reference point from population objectives."""
+    """构建 一个 保守的默认 reference 点 从 种群 目标."""
     if not objectives:
         return (1.0, 1.0)
 

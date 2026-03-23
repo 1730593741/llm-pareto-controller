@@ -1,4 +1,4 @@
-"""Objective functions for Dynamic Weapon-Target Assignment (DWTA)."""
+"""目标函数 用于 Dynamic Weapon-Target Assignment (DWTA)."""
 
 from __future__ import annotations
 
@@ -13,11 +13,11 @@ def compute_objectives(
     required_damage: list[float],
     lethality_matrix: list[list[float]],
 ) -> tuple[float, float]:
-    """Return (remaining_survivability, ammo_consumption).
-
-    Objective 1 minimizes unmet required damage across targets.
-    Objective 2 minimizes total fired ammunition.
-    """
+    """返回 (remaining_survivability, ammo_consumption).
+    
+        Objective 1 minimizes unmet 必需的 damage 跨 Targets.
+        Objective 2 minimizes total fired ammunition.
+        """
     matrix = to_matrix(allocation, n_weapons=n_weapons, n_targets=n_targets)
 
     inflicted_damage = [0.0] * n_targets

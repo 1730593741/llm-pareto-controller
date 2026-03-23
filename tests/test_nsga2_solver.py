@@ -1,4 +1,4 @@
-"""Integration test for minimal NSGA-II solver."""
+"""集成测试 用于 最小 NSGA-II 求解器."""
 
 import pytest
 

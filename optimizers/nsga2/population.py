@@ -1,4 +1,4 @@
-"""Population data structures for the NSGA-II optimizer."""
+"""种群数据结构 用于 该 NSGA-II 优化器."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from problems.task_assignment.encoding import Assignment
 
 @dataclass(slots=True)
 class Individual:
-    """A single NSGA-II candidate solution."""
+    """A 单个 NSGA-II 候选解."""
 
     genome: Assignment
     objectives: tuple[float, ...] = field(default_factory=tuple)
@@ -21,7 +21,7 @@ class Individual:
     crowding_distance: float = 0.0
 
     def copy(self) -> "Individual":
-        """Return a shallow value copy with independent genome list."""
+        """返回 一个 shallow 值 copy，并带有 independent genome list."""
         return Individual(
             genome=list(self.genome),
             objectives=tuple(self.objectives),
@@ -35,7 +35,7 @@ class Individual:
 
 @dataclass(slots=True)
 class Population:
-    """A convenience wrapper over a list of individuals."""
+    """A 便捷封装 over 一个 list 的 个体."""
 
     individuals: list[Individual] = field(default_factory=list)
 
@@ -46,9 +46,9 @@ class Population:
         return len(self.individuals)
 
     def append(self, individual: Individual) -> None:
-        """Append one individual to this population."""
+        """Append 一个 个体 到 this 种群."""
         self.individuals.append(individual)
 
     def extend(self, individuals: list[Individual]) -> None:
-        """Extend with multiple individuals."""
+        """Extend，并带有 multiple 个体."""
         self.individuals.extend(individuals)

@@ -1,4 +1,4 @@
-"""Tests for NSGA-II population structures."""
+"""用于测试 NSGA-II 种群 structures."""
 
 from optimizers.nsga2.population import Individual, Population
 
