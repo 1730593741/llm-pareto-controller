@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import math
 
-from problems.dwta.model import DWTABenchmarkData, MunitionType, Target, Weapon
+from problems.dwta.model import (
+    DWTABenchmarkData,
+    DWTAEnvironment,
+    DWTAScenarioScript,
+    DWTAWaveEvent,
+    MunitionType,
+    Target,
+    Weapon,
+)
 
 
 def distance(weapon: Weapon, target: Target) -> float:
@@ -54,4 +62,32 @@ def build_scenario_matrices(
         compatibility_matrix=compatibility_matrix,
         lethality_matrix=lethality_matrix,
         required_damage=[target.required_damage for target in targets],
+    )
+
+
+def build_dynamic_scenario(
+    munition_types: list[MunitionType],
+    weapons: list[Weapon],
+    targets: list[Target],
+    *,
+    scenario_mode: str = "static",
+    max_weapons: int | None = None,
+    max_targets: int | None = None,
+    waves: list[DWTAWaveEvent] | None = None,
+) -> DWTAEnvironment:
+    """构建 DWTAEnvironment（动态环境对象）并返回初始静态快照.
+
+    当前阶段只负责“可解析、可组装”：
+    - 总是先构建一次 base ``DWTABenchmarkData``；
+    - 当 ``scenario_mode=scripted_waves`` 时，附加脚本对象；
+    - 不在此处修改主求解逻辑或运行期行为。
+    """
+    base_data = build_scenario_matrices(munition_types, weapons, targets)
+    script = DWTAScenarioScript(waves=waves or []) if scenario_mode == "scripted_waves" else None
+    return DWTAEnvironment(
+        base_data=base_data,
+        scenario_mode=scenario_mode,
+        max_weapons=max_weapons,
+        max_targets=max_targets,
+        script=script,
     )

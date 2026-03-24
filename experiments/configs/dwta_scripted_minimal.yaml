@@ -1,0 +1,81 @@
+experiment:
+  name: dwta_scripted_minimal
+  seed: 42
+  method: llm_pareto_controller
+  benchmark: dwta_scripted_minimal
+
+problem:
+  problem_type: dwta
+  scenario_mode: scripted_waves
+  max_weapons: 4
+  max_targets: 6
+  munition_types:
+    - id: m_he
+      max_range: 12.0
+      flight_speed: 3.0
+      lethality: 2.0
+  weapons:
+    - id: w1
+      x: 0.0
+      y: 0.0
+      munition_type_id: m_he
+      ammo_capacity: 4
+    - id: w2
+      x: 2.0
+      y: 0.0
+      munition_type_id: m_he
+      ammo_capacity: 3
+  targets:
+    - id: t1
+      x: 3.0
+      y: 0.5
+      required_damage: 3.0
+      time_window: [0.0, 4.0]
+    - id: t2
+      x: 7.0
+      y: 0.5
+      required_damage: 2.0
+      time_window: [0.0, 4.0]
+  # scripted waves schema: 当前阶段仅做解析与组装，不影响主求解逻辑。
+  waves:
+    - wave_id: initial_contact
+      trigger_generation: 0
+      target_damage_scale: 1.0
+      note: baseline wave
+    - wave_id: second_wave
+      trigger_generation: 5
+      target_damage_scale: 1.2
+      note: target hardening event
+
+optimizer:
+  population_size: 16
+  generations: 8
+  crossover_prob: 0.9
+  mutation_prob: 0.12
+  repair_prob: 1.0
+  eta_c: 18.0
+  eta_m: 35.0
+  local_search_prob: 0.08
+  seed: 42
+
+controller:
+  control_interval: 1
+  min_mutation_prob: 0.02
+  max_mutation_prob: 0.8
+  min_crossover_prob: 0.4
+  max_crossover_prob: 0.98
+  mutation_step: 0.05
+  crossover_step: 0.04
+  feasible_ratio_low: 0.6
+  diversity_low: 0.15
+  improvement_threshold: 0.0001
+
+controller_mode:
+  mode: rule
+
+memory:
+  enabled: true
+  memory_window: 100
+
+logging:
+  output_dir: experiments/logs/dwta_scripted_minimal
