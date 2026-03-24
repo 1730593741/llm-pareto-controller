@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
 from controller.operator_space import OperatorCapabilities, OperatorParams
 from optimizers.nsga2.operators import (
@@ -98,6 +98,7 @@ class NSGA2Solver:
         self.rng = random.Random(config.seed)
         self.dwta_data = dwta_data
         self.dwta_live_cache = dwta_live_cache
+        self._applied_dwta_event_indices: set[int] = set()
 
         # DWTA uses a benchmark object instead of generic task-assignment arrays.
         # We still populate a compatible solver shape so the controller and
@@ -323,6 +324,41 @@ class NSGA2Solver:
         fronts = non_dominated_sort(individuals)
         for front in fronts:
             assign_crowding_distance(front)
+
+    def reevaluate_population(self, population: list[Individual]) -> list[Individual]:
+        """Re-evaluate existing genomes under the current environment state."""
+        refreshed = [self._evaluate(individual.genome) for individual in population]
+        self._annotate_population(refreshed)
+        return refreshed
+
+    def apply_runtime_events(self, *, generation: int) -> list[dict[str, Any]]:
+        """Apply DWTA scripted events scheduled at a given generation.
+
+        Returns a list of structured event payloads for logging. Static problems
+        and non-scripted DWTA modes return an empty list.
+        """
+        if self.dwta_live_cache is None:
+            return []
+        environment = self.dwta_live_cache.environment
+        script = environment.script
+        if script is None:
+            return []
+
+        applied_events: list[dict[str, Any]] = []
+        for idx, event in enumerate(script.waves):
+            if idx in self._applied_dwta_event_indices:
+                continue
+            if event.trigger_generation != generation:
+                continue
+            applied_events.append(environment.apply_wave_event(event))
+            self._applied_dwta_event_indices.add(idx)
+
+        if applied_events:
+            self.dwta_live_cache.invalidate()
+            snapshot = self.dwta_live_cache.refresh(force=True)
+            self.dwta_data = snapshot.as_benchmark_data()
+
+        return applied_events
 
     def _make_offspring(self, population: list[Individual]) -> list[Individual]:
         """Generate one offspring batch using selection, variation, and repair.

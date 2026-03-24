@@ -1,0 +1,99 @@
+experiment:
+  name: dwta_scripted_waves_smoke
+  seed: 7
+  method: llm_pareto_controller
+  benchmark: dwta_scripted_waves_smoke
+
+problem:
+  problem_type: dwta
+  scenario_mode: scripted_waves
+  max_weapons: 4
+  max_targets: 5
+  munition_types:
+    - id: m_he
+      max_range: 10.0
+      flight_speed: 2.5
+      lethality: 2.0
+  weapons:
+    - id: w1
+      x: 0.0
+      y: 0.0
+      munition_type_id: m_he
+      ammo_capacity: 4
+    - id: w2
+      x: 2.0
+      y: 0.0
+      munition_type_id: m_he
+      ammo_capacity: 4
+  targets:
+    - id: t1
+      x: 2.0
+      y: 1.0
+      required_damage: 2.5
+      time_window: [0.0, 5.0]
+    - id: t2
+      x: 6.0
+      y: 0.5
+      required_damage: 2.0
+      time_window: [0.0, 5.0]
+  waves:
+    # 第 2 代：禁用 w2，模拟平台失效
+    - wave_id: disable_w2
+      trigger_generation: 2
+      event_type: disable_weapons
+      payload:
+        weapon_ids: [w2]
+      note: disable one launcher
+
+    # 第 4 代：注入新目标并提升 t1 优先级
+    - wave_id: inject_t3
+      trigger_generation: 4
+      event_type: inject_targets
+      payload:
+        targets:
+          - id: t3
+            x: 4.0
+            y: 2.0
+            required_damage: 2.5
+            time_window: [0.0, 4.0]
+      note: activate spare target slot
+    - wave_id: raise_priority_t1
+      trigger_generation: 4
+      event_type: target_priority_update
+      payload:
+        target_ids: [t1]
+        priority_scale: 1.2
+      note: increase t1 pressure
+
+optimizer:
+  population_size: 16
+  generations: 6
+  crossover_prob: 0.9
+  mutation_prob: 0.12
+  repair_prob: 1.0
+  eta_c: 18.0
+  eta_m: 35.0
+  local_search_prob: 0.08
+  seed: 7
+
+controller:
+  control_interval: 1
+  min_mutation_prob: 0.02
+  max_mutation_prob: 0.8
+  min_crossover_prob: 0.4
+  max_crossover_prob: 0.98
+  mutation_step: 0.05
+  crossover_step: 0.04
+  feasible_ratio_low: 0.6
+  diversity_low: 0.15
+  improvement_threshold: 0.0001
+
+controller_mode:
+  mode: rule
+
+memory:
+  enabled: true
+  memory_window: 100
+
+logging:
+  output_dir: experiments/logs/dwta_scripted_waves_smoke
