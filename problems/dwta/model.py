@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,7 +87,8 @@ class DWTAEnvironment:
     说明：
     - ``base_data`` 对应当前求解器可直接消费的静态矩阵快照；
     - ``script`` 为可选波次脚本，当前阶段仅完成加载与组装；
-    - ``max_weapons/max_targets`` 预留大规模动态场景容量信息。
+    - ``munitions/weapons/targets`` 保留动态构建 live cache 所需的原始对象；
+    - ``state_epoch`` 为环境版本号，外部事件更新后建议手动 +1 并触发 cache refresh。
     """
 
     base_data: DWTABenchmarkData
@@ -95,3 +96,7 @@ class DWTAEnvironment:
     max_weapons: int | None = None
     max_targets: int | None = None
     script: DWTAScenarioScript | None = None
+    munitions: list[MunitionType] = field(default_factory=list)
+    weapons: list[Weapon] = field(default_factory=list)
+    targets: list[Target] = field(default_factory=list)
+    state_epoch: int = 0

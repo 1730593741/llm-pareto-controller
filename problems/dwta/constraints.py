@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
+
 from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, to_matrix
+from problems.dwta.live_cache import DWTALiveCache
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,12 +29,10 @@ def capacity_violation(
     n_targets: int,
 ) -> float:
     """返回 total capacity overflow 跨 所有 Weapons."""
-    matrix = to_matrix(allocation, n_weapons=len(ammo_capacities), n_targets=n_targets)
-    violation = 0.0
-    for weapon_idx, ammo_capacity in enumerate(ammo_capacities):
-        used = sum(matrix[weapon_idx])
-        violation += max(0.0, float(used - ammo_capacity))
-    return float(violation)
+    matrix = np.array(to_matrix(allocation, n_weapons=len(ammo_capacities), n_targets=n_targets), dtype=float)
+    capacities = np.array(ammo_capacities, dtype=float)
+    used = np.sum(matrix, axis=1)
+    return float(np.sum(np.maximum(0.0, used - capacities)))
 
 
 def compatibility_violation(
@@ -40,14 +41,10 @@ def compatibility_violation(
     n_targets: int,
 ) -> float:
     """返回 total incompatible shot assignments."""
-    matrix = to_matrix(allocation, n_weapons=len(compatibility_matrix), n_targets=n_targets)
-    violation = 0.0
-    for weapon_idx, row in enumerate(compatibility_matrix):
-        for target_idx, flag in enumerate(row):
-            shots = matrix[weapon_idx][target_idx]
-            if int(flag) == 0 and shots > 0:
-                violation += float(shots)
-    return float(violation)
+    matrix = np.array(to_matrix(allocation, n_weapons=len(compatibility_matrix), n_targets=n_targets), dtype=float)
+    compatibility = np.array(compatibility_matrix, dtype=float)
+    incompatible_mask = compatibility <= 0.0
+    return float(np.sum(matrix * incompatible_mask))
 
 
 def constraint_breakdown(
@@ -56,8 +53,18 @@ def constraint_breakdown(
     ammo_capacities: list[int],
     compatibility_matrix: list[list[int]],
     n_targets: int,
+    live_cache: DWTALiveCache | None = None,
 ) -> DWTAConstraintBreakdown:
-    """返回 DWTA 违反 decomposition."""
+    """返回 DWTA 违反 decomposition.
+
+    When ``live_cache`` is provided, static matrix arguments are ignored.
+    """
+    if live_cache is not None:
+        snapshot = live_cache.get_snapshot()
+        ammo_capacities = snapshot.ammo_capacities.astype(int).tolist()
+        compatibility_matrix = snapshot.compatibility_mask.astype(int).tolist()
+        n_targets = snapshot.n_targets
+
     return DWTAConstraintBreakdown(
         capacity=capacity_violation(allocation, ammo_capacities, n_targets),
         compatibility=compatibility_violation(allocation, compatibility_matrix, n_targets),

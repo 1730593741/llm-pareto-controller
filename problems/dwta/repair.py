@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 
 from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, to_genome, to_matrix
+from problems.dwta.live_cache import DWTALiveCache
 
 
 def _removal_priority(
@@ -15,12 +16,12 @@ def _removal_priority(
     lethality: float,
 ) -> tuple[int, float, int]:
     """返回 确定性 priority key 用于 removing 一个 shot.
-    
-        Priority order:
-        1) shots on oversaturated Targets (higher oversaturation removed first),
-        2) lower lethality efficiency removed first,
-        3) lower Target 索引 用于 确定性 tie-breaking.
-        """
+
+    Priority order:
+    1) shots on oversaturated Targets (higher oversaturation removed first),
+    2) lower lethality efficiency removed first,
+    3) lower Target 索引 用于 确定性 tie-breaking.
+    """
     oversaturation = 0.0
     if required_damage is not None:
         oversaturation = max(0.0, inflicted_damage[target_idx] - float(required_damage[target_idx]))
@@ -37,13 +38,22 @@ def repair_allocation(
     rng: random.Random,
     lethality_matrix: list[list[float]] | None = None,
     required_damage: list[float] | None = None,
+    live_cache: DWTALiveCache | None = None,
 ) -> list[int]:
     """Repair incompatible 或 over-capacity DWTA allocations.
-    
-        该 heuristic 为 确定性 与 does 不 sample 随机 choices. ``rng`` 为
-        retained 用于 backward-兼容的 function signatures 用于 该 求解器 stack.
-        """
+
+    该 heuristic 为 确定性 与 does 不 sample 随机 choices. ``rng`` 为
+    retained 用于 backward-兼容的 function signatures 用于 该 求解器 stack.
+    """
     del rng
+
+    if live_cache is not None:
+        snapshot = live_cache.get_snapshot()
+        ammo_capacities = snapshot.ammo_capacities.astype(int).tolist()
+        compatibility_matrix = snapshot.compatibility_mask.astype(int).tolist()
+        n_targets = snapshot.n_targets
+        lethality_matrix = snapshot.lethality_matrix.astype(float).tolist()
+        required_damage = snapshot.required_damage.astype(float).tolist()
 
     n_weapons = len(ammo_capacities)
     matrix = to_matrix(allocation, n_weapons=n_weapons, n_targets=n_targets)

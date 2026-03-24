@@ -2,6 +2,7 @@
 
 from problems.dwta.constraints import DWTAConstraintBreakdown, constraint_breakdown
 from problems.dwta.encoding import DWTAAllocationGenome, DWTAAllocationMatrix, random_allocation, to_genome, to_matrix
+from problems.dwta.live_cache import DWTALiveCache, DWTALiveSnapshot
 from problems.dwta.model import (
     DWTABenchmarkData,
     DWTAEnvironment,
@@ -21,6 +22,8 @@ __all__ = [
     "DWTAAllocationMatrix",
     "DWTABenchmarkData",
     "DWTAEnvironment",
+    "DWTALiveCache",
+    "DWTALiveSnapshot",
     "DWTAScenarioScript",
     "DWTAConstraintBreakdown",
     "DWTAWaveEvent",

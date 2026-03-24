@@ -32,6 +32,7 @@ from optimizers.nsga2.selection import (
 )
 from problems.dwta.constraints import constraint_breakdown as dwta_constraint_breakdown
 from problems.dwta.encoding import random_allocation
+from problems.dwta.live_cache import DWTALiveCache
 from problems.dwta.model import DWTABenchmarkData
 from problems.dwta.objectives import compute_objectives as compute_dwta_objectives
 from problems.dwta.repair import repair_allocation
@@ -80,6 +81,7 @@ class NSGA2Solver:
         stage_transitions: Sequence[Sequence[int]] | None = None,
         config: NSGA2Config,
         dwta_data: DWTABenchmarkData | None = None,
+        dwta_live_cache: DWTALiveCache | None = None,
     ) -> None:
         if config.population_size <= 1:
             raise ValueError("population_size must be > 1")
@@ -95,17 +97,27 @@ class NSGA2Solver:
         self.config = config
         self.rng = random.Random(config.seed)
         self.dwta_data = dwta_data
+        self.dwta_live_cache = dwta_live_cache
 
         # DWTA uses a benchmark object instead of generic task-assignment arrays.
         # We still populate a compatible solver shape so the controller and
         # logging layers can query the solver through a uniform interface.
         if self.dwta_data is not None:
+            if self.dwta_live_cache is not None:
+                live = self.dwta_live_cache.get_snapshot()
+                dwta_n_weapons = live.n_weapons
+                dwta_n_targets = live.n_targets
+                ammo_capacities = live.ammo_capacities.astype(float).tolist()
+            else:
+                dwta_n_weapons = self.dwta_data.n_weapons
+                dwta_n_targets = self.dwta_data.n_targets
+                ammo_capacities = [float(value) for value in self.dwta_data.ammo_capacities]
             self.problem_mode = "dwta"
-            self.n_tasks = self.dwta_data.n_weapons * self.dwta_data.n_targets
+            self.n_tasks = dwta_n_weapons * dwta_n_targets
             self.n_resources = 1
             self.cost_matrix = [[0.0] for _ in range(self.n_tasks)]
             self.task_loads = [0.0] * self.n_tasks
-            self.capacities = [float(value) for value in self.dwta_data.ammo_capacities]
+            self.capacities = ammo_capacities
             self.task_time_windows = None
             self.resource_time_windows = None
             self.compatibility_matrix = None
@@ -211,12 +223,14 @@ class NSGA2Solver:
                 n_targets=self.dwta_data.n_targets,
                 required_damage=self.dwta_data.required_damage,
                 lethality_matrix=self.dwta_data.lethality_matrix,
+                live_cache=self.dwta_live_cache,
             )
             breakdown = dwta_constraint_breakdown(
                 genome,
                 ammo_capacities=self.dwta_data.ammo_capacities,
                 compatibility_matrix=self.dwta_data.compatibility_matrix,
                 n_targets=self.dwta_data.n_targets,
+                live_cache=self.dwta_live_cache,
             )
             cv = breakdown.total
             return Individual(
@@ -265,18 +279,24 @@ class NSGA2Solver:
     def initialize_population(self) -> list[Individual]:
         """Create the initial repaired population used by the closed loop."""
         if self.dwta_data is not None:
+            compatibility_matrix = (
+                self.dwta_live_cache.get_snapshot().compatibility_mask.astype(int).tolist()
+                if self.dwta_live_cache is not None
+                else self.dwta_data.compatibility_matrix
+            )
             return [
                 self._evaluate(
                     repair_allocation(
                         random_allocation(
                             self.dwta_data.ammo_capacities,
-                            self.dwta_data.compatibility_matrix,
+                            compatibility_matrix,
                             self.rng,
                         ),
                         ammo_capacities=self.dwta_data.ammo_capacities,
                         compatibility_matrix=self.dwta_data.compatibility_matrix,
                         n_targets=self.dwta_data.n_targets,
                         rng=self.rng,
+                        live_cache=self.dwta_live_cache,
                     )
                 )
                 for _ in range(self.config.population_size)
@@ -340,7 +360,11 @@ class NSGA2Solver:
                     child_a,
                     n_weapons=self.dwta_data.n_weapons,
                     n_targets=self.dwta_data.n_targets,
-                    compatibility_matrix=self.dwta_data.compatibility_matrix,
+                    compatibility_matrix=(
+                        self.dwta_live_cache.get_snapshot().compatibility_mask.astype(int).tolist()
+                        if self.dwta_live_cache is not None
+                        else self.dwta_data.compatibility_matrix
+                    ),
                     mutation_prob=self.config.mutation_prob,
                     rng=self.rng,
                     mutation_step=dwta_mutation_step,
@@ -351,7 +375,11 @@ class NSGA2Solver:
                     child_b,
                     n_weapons=self.dwta_data.n_weapons,
                     n_targets=self.dwta_data.n_targets,
-                    compatibility_matrix=self.dwta_data.compatibility_matrix,
+                    compatibility_matrix=(
+                        self.dwta_live_cache.get_snapshot().compatibility_mask.astype(int).tolist()
+                        if self.dwta_live_cache is not None
+                        else self.dwta_data.compatibility_matrix
+                    ),
                     mutation_prob=self.config.mutation_prob,
                     rng=self.rng,
                     mutation_step=dwta_mutation_step,
@@ -378,6 +406,7 @@ class NSGA2Solver:
                         compatibility_matrix=self.dwta_data.compatibility_matrix,
                         n_targets=self.dwta_data.n_targets,
                         rng=self.rng,
+                        live_cache=self.dwta_live_cache,
                     )
                 else:
                     repaired_a = repair_overloaded_assignment(
@@ -398,6 +427,7 @@ class NSGA2Solver:
                         compatibility_matrix=self.dwta_data.compatibility_matrix,
                         n_targets=self.dwta_data.n_targets,
                         rng=self.rng,
+                        live_cache=self.dwta_live_cache,
                     )
                 else:
                     repaired_b = repair_overloaded_assignment(

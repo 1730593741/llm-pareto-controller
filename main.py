@@ -45,6 +45,7 @@ from problems.dwta.model import (
     Target as DWTATarget,
     Weapon as DWTAWeapon,
 )
+from problems.dwta.live_cache import DWTALiveCache
 from problems.dwta.scenario_builder import build_dynamic_scenario
 from sensing.pareto_state import ParetoStateSensor
 
@@ -385,6 +386,7 @@ def load_config(path: str | Path) -> ExperimentConfig:
 def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
     """从结构化配置创建 NSGA-II 求解器."""
     if problem.problem_type == "dwta":
+        dwta_live_cache: DWTALiveCache | None = None
         if problem.precomputed is not None:
             dwta_data = DWTABenchmarkData(
                 n_weapons=len(problem.precomputed.ammo_capacities),
@@ -439,6 +441,8 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
                     for item in problem.waves
                 ],
             )
+            dwta_live_cache = DWTALiveCache(scenario)
+            dwta_live_cache.refresh()
             dwta_data = scenario.base_data
         return NSGA2Solver(
             n_tasks=0,
@@ -448,6 +452,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
             capacities=[],
             config=optimizer,
             dwta_data=dwta_data,
+            dwta_live_cache=dwta_live_cache,
         )
 
     return NSGA2Solver(
