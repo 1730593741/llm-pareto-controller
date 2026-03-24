@@ -120,3 +120,33 @@ def test_load_dwta_scripted_waves_smoke_config() -> None:
     assert cfg.problem.max_targets == 5
     assert len(cfg.problem.waves) == 3
     assert cfg.problem.waves[0].event_type == "disable_weapons"
+
+
+def test_load_dwta_large_static_config() -> None:
+    cfg = load_config("experiments/configs/dwta_large_static.yaml")
+    assert cfg.problem.problem_type == "dwta"
+    assert cfg.problem.precomputed is not None
+    assert len(cfg.problem.precomputed.ammo_capacities) == 12
+    assert len(cfg.problem.precomputed.required_damage) == 24
+    assert cfg.optimizer.population_size == 96
+    assert cfg.optimizer.generations == 120
+    assert cfg.controller.control_interval == 5
+    assert cfg.memory.memory_window == 200
+
+
+def test_load_dwta_hard_realworld_config() -> None:
+    cfg = load_config("experiments/configs/dwta_hard_realworld.yaml")
+    assert cfg.problem.problem_type == "dwta"
+    assert cfg.problem.scenario_mode == "scripted_waves"
+    assert cfg.problem.max_weapons == 16
+    assert cfg.problem.max_targets == 32
+    assert len(cfg.problem.targets or []) == 10
+    assert 3 <= len(cfg.problem.waves) <= 6
+    event_types = {wave.event_type for wave in cfg.problem.waves}
+    assert {"disable_weapons", "inject_targets", "ammo_delta", "target_priority_update", "time_window_update"} <= event_types
+    assert cfg.optimizer.population_size == 128
+    assert cfg.optimizer.generations == 160
+    assert cfg.controller.control_interval == 10
+    assert cfg.controller.event_triggered_control is True
+    assert cfg.controller.event_control_cooldown == 3
+    assert cfg.memory.memory_window == 300

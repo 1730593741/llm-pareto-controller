@@ -1,0 +1,153 @@
+experiment:
+  name: dwta_hard_realworld
+  seed: 2026
+  method: llm_pareto_controller
+  benchmark: dwta_hard_realworld
+
+problem:
+  problem_type: dwta
+  scenario_mode: scripted_waves
+  # 固定大画布容量：实际激活实体可随波次变化，但编码维度保持稳定，便于动态缓存/增量求解。
+  max_weapons: 16
+  max_targets: 32
+
+  munition_types:
+    - id: m_he
+      max_range: 14.0
+      flight_speed: 3.2
+      lethality: 2.3
+    - id: m_ap
+      max_range: 18.0
+      flight_speed: 4.0
+      lethality: 2.8
+    - id: m_lr
+      max_range: 26.0
+      flight_speed: 5.0
+      lethality: 1.9
+
+  # 初始仅启用 10 个目标（后续波次通过 inject_targets/priority/time window 持续扰动）。
+  weapons:
+    - {id: w01, x: 0.0, y: 0.0, munition_type_id: m_he, ammo_capacity: 6}
+    - {id: w02, x: 2.0, y: 0.0, munition_type_id: m_he, ammo_capacity: 5}
+    - {id: w03, x: 4.0, y: 0.0, munition_type_id: m_ap, ammo_capacity: 5}
+    - {id: w04, x: 6.0, y: 0.0, munition_type_id: m_ap, ammo_capacity: 4}
+    - {id: w05, x: 8.0, y: 0.0, munition_type_id: m_lr, ammo_capacity: 4}
+    - {id: w06, x: 10.0, y: 0.0, munition_type_id: m_lr, ammo_capacity: 4}
+    - {id: w07, x: 1.0, y: 2.0, munition_type_id: m_he, ammo_capacity: 5}
+    - {id: w08, x: 3.0, y: 2.0, munition_type_id: m_ap, ammo_capacity: 5}
+
+  targets:
+    - {id: t01, x: 5.0, y: 6.0, required_damage: 3.2, time_window: [0.0, 18.0]}
+    - {id: t02, x: 8.0, y: 5.0, required_damage: 3.6, time_window: [0.0, 20.0]}
+    - {id: t03, x: 11.0, y: 4.0, required_damage: 4.0, time_window: [0.0, 22.0]}
+    - {id: t04, x: 14.0, y: 6.0, required_damage: 3.9, time_window: [0.0, 24.0]}
+    - {id: t05, x: 16.0, y: 8.0, required_damage: 4.3, time_window: [0.0, 25.0]}
+    - {id: t06, x: 18.0, y: 5.0, required_damage: 3.1, time_window: [0.0, 19.0]}
+    - {id: t07, x: 20.0, y: 7.0, required_damage: 4.1, time_window: [0.0, 24.0]}
+    - {id: t08, x: 22.0, y: 6.0, required_damage: 3.5, time_window: [0.0, 20.0]}
+    - {id: t09, x: 24.0, y: 5.0, required_damage: 4.6, time_window: [0.0, 26.0]}
+    - {id: t10, x: 26.0, y: 8.0, required_damage: 3.8, time_window: [0.0, 21.0]}
+
+  waves:
+    # Wave-1: 平台损失（disable_weapons）
+    - wave_id: wave_1_disable
+      trigger_generation: 20
+      event_type: disable_weapons
+      payload:
+        weapon_ids: [w02, w07]
+      note: two launchers lost due to EW damage
+
+    # Wave-2: 新目标注入（inject_targets）+ 优先级重排（target_priority_update）
+    - wave_id: wave_2_inject_targets
+      trigger_generation: 38
+      event_type: inject_targets
+      payload:
+        targets:
+          - {id: t11, x: 12.0, y: 10.0, required_damage: 3.7, time_window: [38.0, 60.0]}
+          - {id: t12, x: 18.0, y: 10.0, required_damage: 4.4, time_window: [38.0, 66.0]}
+          - {id: t13, x: 25.0, y: 11.0, required_damage: 4.8, time_window: [38.0, 72.0]}
+      note: follow-up raid targets appear
+
+    - wave_id: wave_2_priority_update
+      trigger_generation: 40
+      event_type: target_priority_update
+      payload:
+        target_ids: [t03, t05, t12]
+        priority_scale: 1.35
+      note: command increases high-value target urgency
+
+    # Wave-3: 弹药突变（ammo_delta）
+    - wave_id: wave_3_ammo_shift
+      trigger_generation: 64
+      event_type: ammo_delta
+      payload:
+        changes:
+          w01: -2
+          w03: -1
+          w05: 2
+          w08: 1
+      note: partial resupply with asymmetric loss and gain
+
+    # Wave-4: 时间窗变化（time_window_update）
+    - wave_id: wave_4_window_compress
+      trigger_generation: 92
+      event_type: time_window_update
+      payload:
+        updates:
+          t04: [92.0, 108.0]
+          t08: [92.0, 110.0]
+          t10: [92.0, 105.0]
+          t13: [92.0, 120.0]
+      note: weather and ROE shrink engagement windows
+
+    # Wave-5: 终局混合扰动（再注入 + 优先级更新）
+    - wave_id: wave_5_final_push
+      trigger_generation: 118
+      event_type: inject_targets
+      payload:
+        targets:
+          - {id: t14, x: 9.0, y: 12.0, required_damage: 4.9, time_window: [118.0, 145.0]}
+          - {id: t15, x: 15.0, y: 13.0, required_damage: 5.2, time_window: [118.0, 150.0]}
+      note: final wave creates end-game saturation
+
+optimizer:
+  # 动态高扰动场景下提升到 128，增强多样性与鲁棒性。
+  population_size: 128
+  # 160 代用于覆盖 5 波扰动全过程，避免后期事件无优化预算。
+  generations: 160
+  crossover_prob: 0.9
+  mutation_prob: 0.14
+  repair_prob: 1.0
+  eta_c: 18.0
+  eta_m: 35.0
+  local_search_prob: 0.12
+  seed: 2026
+
+controller:
+  # 基础周期放宽到 10 代，减少噪声动作；靠事件触发补偿实时性。
+  control_interval: 10
+  # 事件驱动控制：遇到波次事件立即补充一次控制动作。
+  event_triggered_control: true
+  # 冷却 3 代，避免连续事件导致参数抖动。
+  event_control_cooldown: 3
+  forced_control_on_major_event: true
+  min_mutation_prob: 0.02
+  max_mutation_prob: 0.85
+  min_crossover_prob: 0.35
+  max_crossover_prob: 0.98
+  mutation_step: 0.06
+  crossover_step: 0.04
+  feasible_ratio_low: 0.58
+  diversity_low: 0.16
+  improvement_threshold: 0.00008
+
+controller_mode:
+  mode: rule
+
+memory:
+  enabled: true
+  # 长窗口 300：用于吸收多波次非平稳状态历史。
+  memory_window: 300
+
+logging:
+  output_dir: experiments/logs/dwta_hard_realworld
