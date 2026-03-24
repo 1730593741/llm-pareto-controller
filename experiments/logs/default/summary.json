@@ -1,0 +1,70 @@
+{
+  "experiment": {
+    "name": "default_closed_loop",
+    "seed": 7,
+    "method": null,
+    "benchmark": null
+  },
+  "controller_mode": "rule",
+  "method": "default_closed_loop",
+  "benchmark": "unknown",
+  "seed": 7,
+  "source_config_path": "experiments/configs/default.yaml",
+  "run_id": "run-fc6ee4d81d6a",
+  "config_fingerprint": "fc6ee4d81d6a700dc8f6713a857d861f390b78fe9ee970a1f92d492e0484a9cc",
+  "generations": 20,
+  "final_generation": 20,
+  "final_hv": 1.9718000000000002,
+  "best_hv": 3.9908000000000032,
+  "best_generation": 0,
+  "hv_auc": 2.1600952380952396,
+  "mean_hv": 2.1600952380952396,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 1.0,
+  "final_igd": 0.0,
+  "final_igd_plus": 0.0,
+  "final_spacing": 0.10000000000000031,
+  "final_spread": 0.15151686465822753,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 21,
+      "num_aggregated_points": 434
+    },
+    "num_points": 344
+  },
+  "final_mutation_prob": 0.03,
+  "final_crossover_prob": 0.9600000000000001,
+  "final_operator_params": {
+    "mutation_prob": 0.03,
+    "crossover_prob": 0.9600000000000001,
+    "eta_c": null,
+    "eta_m": null,
+    "repair_prob": 1.0,
+    "local_search_prob": null
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.03,
+    "crossover_prob": 0.9600000000000001,
+    "repair_prob": 1.0
+  },
+  "operator_capabilities": {
+    "supports_eta_c": false,
+    "supports_eta_m": false,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": false
+  },
+  "events_path": "experiments\\logs\\default\\events.jsonl",
+  "experiences_path": "experiments\\logs\\default\\experiences.jsonl",
+  "num_actions": 4,
+  "runtime_s": 0.2444164000917226,
+  "llm_overhead_s": 0.00022409996017813683,
+  "control_state_counts": {
+    "increase_convergence": 3,
+    "maintain_balance": 1
+  },
+  "num_experiences": 4,
+  "config_snapshot_path": "experiments\\logs\\default\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\logs\\default\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\logs\\default\\actions.jsonl"
+}

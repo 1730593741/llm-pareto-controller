@@ -1,0 +1,69 @@
+{
+  "experiment": {
+    "name": "baseline_rule_control",
+    "seed": 1234,
+    "method": null,
+    "benchmark": null
+  },
+  "controller_mode": "rule",
+  "method": "baseline_rule_control",
+  "benchmark": "unknown",
+  "seed": 1234,
+  "source_config_path": "tmp_seed_configs\\rule_control_seed_1234.yaml",
+  "run_id": "run-a531bf44330e",
+  "config_fingerprint": "a531bf44330ee352cdd0aa89fce2027187192103e8c6d042e1d9e53ae1f4cfe8",
+  "generations": 20,
+  "final_generation": 20,
+  "final_hv": 2.1011999999999986,
+  "best_hv": 4.672800000000002,
+  "best_generation": 0,
+  "hv_auc": 2.349666666666666,
+  "mean_hv": 2.349666666666666,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 1.0,
+  "final_igd": 0.0,
+  "final_igd_plus": 0.0,
+  "final_spacing": 0.1673320053068145,
+  "final_spread": 0.21235362348371653,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 21,
+      "num_aggregated_points": 447
+    },
+    "num_points": 447
+  },
+  "final_mutation_prob": 0.03,
+  "final_crossover_prob": 0.98,
+  "final_operator_params": {
+    "mutation_prob": 0.03,
+    "crossover_prob": 0.98,
+    "eta_c": null,
+    "eta_m": null,
+    "repair_prob": 1.0,
+    "local_search_prob": null
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.03,
+    "crossover_prob": 0.98,
+    "repair_prob": 1.0
+  },
+  "operator_capabilities": {
+    "supports_eta_c": false,
+    "supports_eta_m": false,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": false
+  },
+  "events_path": "experiments\\runs\\main_results\\rule_control\\seed_1234\\events.jsonl",
+  "experiences_path": "experiments\\runs\\main_results\\rule_control\\seed_1234\\experiences.jsonl",
+  "num_actions": 4,
+  "runtime_s": 0.21372130000963807,
+  "llm_overhead_s": 0.00015009997878223658,
+  "control_state_counts": {
+    "increase_convergence": 4
+  },
+  "num_experiences": 4,
+  "config_snapshot_path": "experiments\\runs\\main_results\\rule_control\\seed_1234\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\runs\\main_results\\rule_control\\seed_1234\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\runs\\main_results\\rule_control\\seed_1234\\actions.jsonl"
+}

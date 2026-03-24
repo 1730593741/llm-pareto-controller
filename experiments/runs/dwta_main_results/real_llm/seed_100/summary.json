@@ -1,0 +1,74 @@
+{
+  "experiment": {
+    "name": "dwta_medium",
+    "seed": 100,
+    "method": "llm_pareto_controller",
+    "benchmark": "dwta_medium"
+  },
+  "controller_mode": "real_llm",
+  "method": "llm_pareto_controller",
+  "benchmark": "dwta_medium",
+  "seed": 100,
+  "source_config_path": "tmp_seed_configs_dwta\\real_llm_dwta_seed_100.yaml",
+  "run_id": "run-baab4552efd9",
+  "config_fingerprint": "baab4552efd91ca84ddfa2568eec8e2ad5d8d23a6b48b329466f77fdebcdbe6f",
+  "generations": 24,
+  "final_generation": 24,
+  "final_hv": 201.50399999999996,
+  "best_hv": 201.50399999999996,
+  "best_generation": 24,
+  "hv_auc": 164.01512000000002,
+  "mean_hv": 164.01512000000002,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 0.75,
+  "final_igd": 0.0,
+  "final_igd_plus": 0.0,
+  "final_spacing": 0.5604648776871559,
+  "final_spread": 0.1977604292506502,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 25,
+      "num_aggregated_points": 438
+    },
+    "num_points": 137
+  },
+  "final_mutation_prob": 0.2,
+  "final_crossover_prob": 0.8,
+  "final_operator_params": {
+    "mutation_prob": 0.2,
+    "crossover_prob": 0.8,
+    "eta_c": 20.0,
+    "eta_m": 40.0,
+    "repair_prob": 1.0,
+    "local_search_prob": 0.06000000000000001
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.2,
+    "crossover_prob": 0.8,
+    "eta_c": 20.0,
+    "eta_m": 40.0,
+    "repair_prob": 1.0,
+    "local_search_prob": 0.06000000000000001
+  },
+  "operator_capabilities": {
+    "supports_eta_c": true,
+    "supports_eta_m": true,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": true
+  },
+  "events_path": "experiments\\runs\\dwta_main_results\\real_llm\\seed_100\\events.jsonl",
+  "experiences_path": "experiments\\runs\\dwta_main_results\\real_llm\\seed_100\\experiences.jsonl",
+  "num_actions": 11,
+  "runtime_s": 202.53174899995793,
+  "llm_overhead_s": 201.8966982999118,
+  "control_state_counts": {
+    "increase_diversity": 4,
+    "increase_convergence": 4,
+    "maintain_balance": 3
+  },
+  "num_experiences": 11,
+  "config_snapshot_path": "experiments\\runs\\dwta_main_results\\real_llm\\seed_100\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\runs\\dwta_main_results\\real_llm\\seed_100\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\runs\\dwta_main_results\\real_llm\\seed_100\\actions.jsonl"
+}

@@ -1,0 +1,70 @@
+{
+  "experiment": {
+    "name": "real_llm_chain",
+    "seed": 2024,
+    "method": null,
+    "benchmark": null
+  },
+  "controller_mode": "real_llm",
+  "method": "real_llm_chain",
+  "benchmark": "unknown",
+  "seed": 2024,
+  "source_config_path": "tmp_seed_configs\\real_llm_seed_2024.yaml",
+  "run_id": "run-d1414b17673c",
+  "config_fingerprint": "d1414b17673cea4a7f2bcaa99e291f3fd293ef0375d1e3c2a2f75334229bc521",
+  "generations": 12,
+  "final_generation": 12,
+  "final_hv": 2.1011999999999986,
+  "best_hv": 3.745300000000001,
+  "best_generation": 0,
+  "hv_auc": 2.373738461538461,
+  "mean_hv": 2.373738461538461,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 1.0,
+  "final_igd": 0.0,
+  "final_igd_plus": 0.0,
+  "final_spacing": 0.09999999999999942,
+  "final_spread": 0.24406273820220042,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 13,
+      "num_aggregated_points": 252
+    },
+    "num_points": 240
+  },
+  "final_mutation_prob": 0.18,
+  "final_crossover_prob": 0.82,
+  "final_operator_params": {
+    "mutation_prob": 0.18,
+    "crossover_prob": 0.82,
+    "eta_c": null,
+    "eta_m": null,
+    "repair_prob": 0.92,
+    "local_search_prob": null
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.18,
+    "crossover_prob": 0.82,
+    "repair_prob": 0.92
+  },
+  "operator_capabilities": {
+    "supports_eta_c": false,
+    "supports_eta_m": false,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": false
+  },
+  "events_path": "experiments\\runs\\main_results\\real_llm\\seed_2024\\events.jsonl",
+  "experiences_path": "experiments\\runs\\main_results\\real_llm\\seed_2024\\experiences.jsonl",
+  "num_actions": 3,
+  "runtime_s": 75.76806450006552,
+  "llm_overhead_s": 75.58448949991725,
+  "control_state_counts": {
+    "increase_diversity": 2,
+    "increase_convergence": 1
+  },
+  "num_experiences": 3,
+  "config_snapshot_path": "experiments\\runs\\main_results\\real_llm\\seed_2024\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\runs\\main_results\\real_llm\\seed_2024\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\runs\\main_results\\real_llm\\seed_2024\\actions.jsonl"
+}

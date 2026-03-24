@@ -1,0 +1,67 @@
+{
+  "experiment": {
+    "name": "baseline_nsga2",
+    "seed": 1234,
+    "method": null,
+    "benchmark": null
+  },
+  "controller_mode": "rule",
+  "method": "baseline_nsga2",
+  "benchmark": "unknown",
+  "seed": 1234,
+  "source_config_path": "tmp_seed_configs\\baseline_nsga2_seed_1234.yaml",
+  "run_id": "run-2540ab6cdfc0",
+  "config_fingerprint": "2540ab6cdfc0350719665b9cda012cf5e345d2feec8ec1b7f3298ed11fcf731c",
+  "generations": 20,
+  "final_generation": 20,
+  "final_hv": 1.9717999999999993,
+  "best_hv": 4.672800000000002,
+  "best_generation": 0,
+  "hv_auc": 2.306533333333333,
+  "mean_hv": 2.306533333333333,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 1.0,
+  "final_igd": 0.0,
+  "final_igd_plus": 0.0,
+  "final_spacing": 0.09999999999999942,
+  "final_spread": 0.15151686465822795,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 21,
+      "num_aggregated_points": 447
+    },
+    "num_points": 388
+  },
+  "final_mutation_prob": 0.1,
+  "final_crossover_prob": 0.9,
+  "final_operator_params": {
+    "mutation_prob": 0.1,
+    "crossover_prob": 0.9,
+    "eta_c": null,
+    "eta_m": null,
+    "repair_prob": 1.0,
+    "local_search_prob": null
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.1,
+    "crossover_prob": 0.9,
+    "repair_prob": 1.0
+  },
+  "operator_capabilities": {
+    "supports_eta_c": false,
+    "supports_eta_m": false,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": false
+  },
+  "events_path": "experiments\\runs\\main_results\\baseline_nsga2\\seed_1234\\events.jsonl",
+  "experiences_path": null,
+  "num_actions": 0,
+  "runtime_s": 0.18250130000524223,
+  "llm_overhead_s": 0,
+  "control_state_counts": {},
+  "num_experiences": 0,
+  "config_snapshot_path": "experiments\\runs\\main_results\\baseline_nsga2\\seed_1234\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\runs\\main_results\\baseline_nsga2\\seed_1234\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\runs\\main_results\\baseline_nsga2\\seed_1234\\actions.jsonl"
+}

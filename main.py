@@ -259,13 +259,13 @@ class LLMRuntimeConfig(BaseModel):
     """Config schema 用于 LLM 运行时 backend."""
 
     provider: str = "openai"
-    model: str = "gpt-mock"
+    model: str = "qwen3-max"
     timeout_s: float = 10.0
     max_retries: int = 2
-    api_key_env: str = "OPENAI_API_KEY"
+    api_key_env: str = "sk-d88a51409bb340dfb5f14fef03a990a0"
     base_url_env: str = "OPENAI_BASE_URL"
     model_env: str = "OPENAI_MODEL"
-    base_url: str = "https://api.openai.com/v1/chat/completions"
+    base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     fallback_mode: Literal["mock_llm", "hold"] = "mock_llm"
 
 
