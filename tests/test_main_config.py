@@ -100,3 +100,13 @@ def test_load_dwta_precomputed_config() -> None:
     assert cfg.problem.problem_type == "dwta"
     assert cfg.problem.precomputed is not None
     assert cfg.problem.precomputed.ammo_capacities == [4, 4, 3, 3]
+
+
+def test_load_dwta_scripted_config() -> None:
+    cfg = load_config("experiments/configs/dwta_scripted_minimal.yaml")
+
+    assert cfg.problem.problem_type == "dwta"
+    assert cfg.problem.scenario_mode == "scripted_waves"
+    assert cfg.problem.max_weapons == 4
+    assert cfg.problem.max_targets == 6
+    assert len(cfg.problem.waves) == 2

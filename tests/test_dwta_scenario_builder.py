@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from main import ProblemConfig
-from problems.dwta.model import MunitionType, Target, Weapon
-from problems.dwta.scenario_builder import build_scenario_matrices
+from problems.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
+from problems.dwta.scenario_builder import build_dynamic_scenario, build_scenario_matrices
 
 
 def test_scenario_builder_compatibility_and_lethality_correctness() -> None:
@@ -50,6 +50,25 @@ def test_scenario_builder_rejects_invalid_munition_reference() -> None:
             weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="missing", ammo_capacity=1)],
             targets=[Target(id="t1", x=1.0, y=1.0, required_damage=1.0, time_window=(0.0, 10.0))],
         )
+
+
+def test_dynamic_scenario_builder_assembles_environment_and_script() -> None:
+    env = build_dynamic_scenario(
+        munition_types=[MunitionType(id="m1", max_range=10.0, flight_speed=2.0, lethality=2.0)],
+        weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="m1", ammo_capacity=2)],
+        targets=[Target(id="t1", x=2.0, y=0.0, required_damage=2.0, time_window=(0.0, 2.0))],
+        scenario_mode="scripted_waves",
+        max_weapons=8,
+        max_targets=12,
+        waves=[DWTAWaveEvent(wave_id="w0", trigger_generation=0, target_damage_scale=1.0)],
+    )
+
+    assert env.scenario_mode == "scripted_waves"
+    assert env.max_weapons == 8
+    assert env.max_targets == 12
+    assert env.script is not None
+    assert len(env.script.waves) == 1
+    assert env.base_data.n_weapons == 1
 
 
 def test_problem_config_accepts_new_munition_types_key() -> None:

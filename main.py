@@ -38,8 +38,14 @@ from llm.strategist import Strategist
 from memory.experience_pool import ExperiencePool
 from experiments.logging import split_event_stream
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
-from problems.dwta.model import DWTABenchmarkData, MunitionType as DWTAMunitionType, Target as DWTATarget, Weapon as DWTAWeapon
-from problems.dwta.scenario_builder import build_scenario_matrices
+from problems.dwta.model import (
+    DWTABenchmarkData,
+    DWTAWaveEvent,
+    MunitionType as DWTAMunitionType,
+    Target as DWTATarget,
+    Weapon as DWTAWeapon,
+)
+from problems.dwta.scenario_builder import build_dynamic_scenario
 from sensing.pareto_state import ParetoStateSensor
 
 
@@ -143,6 +149,28 @@ class DWTAPrecomputedConfig(BaseModel):
         return self
 
 
+class DWTAWaveEventConfig(BaseModel):
+    """DWTA 脚本波次配置项（当前阶段仅用于 schema 解析与对象组装）."""
+
+    wave_id: str
+    trigger_generation: int = 0
+    target_damage_scale: float = 1.0
+    compatibility_override: list[list[int]] | None = None
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_wave(self) -> "DWTAWaveEventConfig":
+        if self.trigger_generation < 0:
+            raise ValueError("dwta.waves.trigger_generation must be >= 0")
+        if not math.isfinite(self.target_damage_scale) or self.target_damage_scale <= 0:
+            raise ValueError("dwta.waves.target_damage_scale must be finite and > 0")
+        if self.compatibility_override is not None:
+            for row in self.compatibility_override:
+                if any(value not in (0, 1) for value in row):
+                    raise ValueError("dwta.waves.compatibility_override values must be 0 or 1")
+        return self
+
+
 class ProblemConfig(BaseModel):
     """问题规格 用于 任务-分配 与 DWTA 基准问题."""
 
@@ -164,6 +192,10 @@ class ProblemConfig(BaseModel):
     weapons: list[DWTAWeaponConfig] | None = None
     targets: list[DWTATargetConfig] | None = None
     precomputed: DWTAPrecomputedConfig | None = None
+    scenario_mode: Literal["static", "scripted_waves"] = "static"
+    max_weapons: int | None = None
+    max_targets: int | None = None
+    waves: list[DWTAWaveEventConfig] = Field(default_factory=list)
 
     @property
     def resolved_munition_types(self) -> list[DWTAMunitionConfig]:
@@ -173,6 +205,14 @@ class ProblemConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_shapes(self) -> "ProblemConfig":
         if self.problem_type == "dwta":
+            if self.scenario_mode not in {"static", "scripted_waves"}:
+                raise ValueError("dwta.scenario_mode must be one of static/scripted_waves")
+            if self.max_weapons is not None and self.max_weapons <= 0:
+                raise ValueError("dwta.max_weapons must be > 0 when provided")
+            if self.max_targets is not None and self.max_targets <= 0:
+                raise ValueError("dwta.max_targets must be > 0 when provided")
+            if self.scenario_mode == "static" and self.waves:
+                raise ValueError("dwta.waves requires scenario_mode=scripted_waves")
             if self.precomputed is not None:
                 return self
             if not self.resolved_munition_types or not self.weapons or not self.targets:
@@ -355,7 +395,7 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
                 required_damage=problem.precomputed.required_damage,
             )
         else:
-            dwta_data = build_scenario_matrices(
+            scenario = build_dynamic_scenario(
                 [
                     DWTAMunitionType(
                         id=item.id,
@@ -385,7 +425,21 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
                     )
                     for item in problem.targets or []
                 ],
+                scenario_mode=problem.scenario_mode,
+                max_weapons=problem.max_weapons,
+                max_targets=problem.max_targets,
+                waves=[
+                    DWTAWaveEvent(
+                        wave_id=item.wave_id,
+                        trigger_generation=item.trigger_generation,
+                        target_damage_scale=item.target_damage_scale,
+                        compatibility_override=item.compatibility_override,
+                        note=item.note,
+                    )
+                    for item in problem.waves
+                ],
             )
+            dwta_data = scenario.base_data
         return NSGA2Solver(
             n_tasks=0,
             n_resources=1,
