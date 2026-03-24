@@ -68,7 +68,10 @@ def test_dynamic_scenario_builder_assembles_environment_and_script() -> None:
     assert env.max_targets == 12
     assert env.script is not None
     assert len(env.script.waves) == 1
-    assert env.base_data.n_weapons == 1
+    assert env.base_data.n_weapons == 8
+    assert env.base_data.n_targets == 12
+    assert env.weapons[-1].ammo_capacity == 0
+    assert env.targets[-1].required_damage == 0.0
 
 
 def test_problem_config_accepts_new_munition_types_key() -> None:

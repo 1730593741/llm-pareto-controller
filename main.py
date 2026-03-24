@@ -151,20 +151,35 @@ class DWTAPrecomputedConfig(BaseModel):
 
 
 class DWTAWaveEventConfig(BaseModel):
-    """DWTA 脚本波次配置项（当前阶段仅用于 schema 解析与对象组装）."""
+    """DWTA 脚本波次配置项（支持运行期事件注入）."""
 
     wave_id: str
     trigger_generation: int = 0
-    target_damage_scale: float = 1.0
+    event_type: str = "legacy_target_damage_scale"
+    payload: dict[str, Any] = Field(default_factory=dict)
+    target_damage_scale: float | None = None
     compatibility_override: list[list[int]] | None = None
     note: str | None = None
 
     @model_validator(mode="after")
     def _validate_wave(self) -> "DWTAWaveEventConfig":
+        supported_event_types = {
+            "activate_targets",
+            "inject_targets",
+            "disable_weapons",
+            "ammo_delta",
+            "target_priority_update",
+            "time_window_update",
+            "legacy_target_damage_scale",
+        }
         if self.trigger_generation < 0:
             raise ValueError("dwta.waves.trigger_generation must be >= 0")
-        if not math.isfinite(self.target_damage_scale) or self.target_damage_scale <= 0:
-            raise ValueError("dwta.waves.target_damage_scale must be finite and > 0")
+        if self.event_type not in supported_event_types:
+            raise ValueError(f"dwta.waves.event_type must be one of {sorted(supported_event_types)}")
+        if self.target_damage_scale is not None and (
+            (not math.isfinite(self.target_damage_scale)) or self.target_damage_scale <= 0
+        ):
+            raise ValueError("dwta.waves.target_damage_scale must be finite and > 0 when provided")
         if self.compatibility_override is not None:
             for row in self.compatibility_override:
                 if any(value not in (0, 1) for value in row):
@@ -214,6 +229,9 @@ class ProblemConfig(BaseModel):
                 raise ValueError("dwta.max_targets must be > 0 when provided")
             if self.scenario_mode == "static" and self.waves:
                 raise ValueError("dwta.waves requires scenario_mode=scripted_waves")
+            if self.scenario_mode == "scripted_waves":
+                if self.max_weapons is None or self.max_targets is None:
+                    raise ValueError("scripted_waves mode requires max_weapons and max_targets for fixed canvas")
             if self.precomputed is not None:
                 return self
             if not self.resolved_munition_types or not self.weapons or not self.targets:
@@ -230,6 +248,11 @@ class ProblemConfig(BaseModel):
             for weapon in self.weapons:
                 if weapon.munition_type_id not in munition_ids:
                     raise ValueError("weapon.munition_type_id must reference a defined munition")
+            if self.scenario_mode == "scripted_waves":
+                if self.max_weapons is not None and self.max_weapons < len(self.weapons):
+                    raise ValueError("dwta.max_weapons must be >= number of configured weapons")
+                if self.max_targets is not None and self.max_targets < len(self.targets):
+                    raise ValueError("dwta.max_targets must be >= number of configured targets")
             return self
 
         if self.task_time_windows is not None:
@@ -434,6 +457,8 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
                     DWTAWaveEvent(
                         wave_id=item.wave_id,
                         trigger_generation=item.trigger_generation,
+                        event_type=item.event_type,
+                        payload=item.payload,
                         target_damage_scale=item.target_damage_scale,
                         compatibility_override=item.compatibility_override,
                         note=item.note,

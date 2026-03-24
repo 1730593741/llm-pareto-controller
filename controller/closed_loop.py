@@ -332,6 +332,14 @@ class ClosedLoopRunner:
         states: list[ParetoState] = []
         pending_experience: _PendingExperience | None = None
 
+        # Allow scripted generation-0 events before baseline sensing so that
+        # initial state reflects the post-event environment snapshot.
+        initial_events = self.solver.apply_runtime_events(generation=0)
+        if initial_events:
+            population = self.solver.reevaluate_population(population)
+            for event in initial_events:
+                self._log_runtime_event(event, generation=0)
+
         # Generation 0 is sensed before any controller intervention so the run
         # always has a baseline state for logging and reward computation.
         initial_state = self.sensor.sense(
@@ -345,6 +353,11 @@ class ClosedLoopRunner:
         previous_state = initial_state
 
         for generation in range(1, generations + 1):
+            runtime_events = self.solver.apply_runtime_events(generation=generation)
+            if runtime_events:
+                population = self.solver.reevaluate_population(population)
+                for event in runtime_events:
+                    self._log_runtime_event(event, generation=generation)
             population = self.solver.evolve_one_generation(population)
             state = self.sensor.sense(
                 generation=generation,
@@ -422,6 +435,19 @@ class ClosedLoopRunner:
         if self.logger is None:
             return
         self.logger.log({"event": "action", **action.to_dict()})
+
+    def _log_runtime_event(self, runtime_event: dict[str, Any], *, generation: int) -> None:
+        """Emit a DWTA runtime-event record for scripted wave playback."""
+        if self.logger is None:
+            return
+        self.logger.log(
+            {
+                "event": "runtime_event",
+                "generation": generation,
+                **runtime_event,
+                "live_cache_invalidated": True,
+            }
+        )
 
     def _finalize_experience(self, pending: _PendingExperience, next_state: ParetoState) -> None:
         """Close a pending transition and persist it to memory/logging sinks."""

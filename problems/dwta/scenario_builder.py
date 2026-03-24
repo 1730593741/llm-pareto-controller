@@ -1,4 +1,4 @@
-"""场景预处理 用于 Dynamic Weapon-Target Assignment (DWTA)."""
+"""场景预处理与固定画布构建 用于 Dynamic Weapon-Target Assignment (DWTA)."""
 
 from __future__ import annotations
 
@@ -25,12 +25,7 @@ def build_scenario_matrices(
     weapons: list[Weapon],
     targets: list[Target],
 ) -> DWTABenchmarkData:
-    """Precompute 兼容性 与 lethality matrices once at setup time.
-
-    Compatibility 规则:
-    - 距离 <= max_range
-    - flight_time 在 [Target.time_window.start, Target.time_window.end]
-    """
+    """Precompute compatibility 与 lethality matrices once at setup time."""
     munition_by_id = {munition.id: munition for munition in munition_types}
 
     compatibility_matrix: list[list[int]] = []
@@ -75,13 +70,54 @@ def build_dynamic_scenario(
     max_targets: int | None = None,
     waves: list[DWTAWaveEvent] | None = None,
 ) -> DWTAEnvironment:
-    """构建 DWTAEnvironment（动态环境对象）并返回初始静态快照.
+    """构建 DWTAEnvironment，并在 scripted_waves 模式启用固定画布策略.
 
-    当前阶段只负责“可解析、可组装”：
-    - 总是先构建一次 base ``DWTABenchmarkData``；
-    - 当 ``scenario_mode=scripted_waves`` 时，附加脚本对象；
-    - 不在此处修改主求解逻辑或运行期行为。
+    Compatibility strategy:
+    - static 模式保留原始规模，不做补齐；
+    - scripted_waves 模式按 ``max_weapons/max_targets`` 补齐占位实体；
+    - 占位武器 ammo=0、占位目标 required_damage=0，用于 active-mask 控制。
     """
+    if scenario_mode == "scripted_waves":
+        if max_weapons is None:
+            max_weapons = len(weapons)
+        if max_targets is None:
+            max_targets = len(targets)
+        if max_weapons < len(weapons):
+            raise ValueError("max_weapons must be >= initial weapon count")
+        if max_targets < len(targets):
+            raise ValueError("max_targets must be >= initial target count")
+        if not munition_types:
+            raise ValueError("scripted_waves mode requires at least one munition type")
+
+        default_munition_id = munition_types[0].id
+        padded_weapons = list(weapons)
+        padded_targets = list(targets)
+
+        for idx in range(len(padded_weapons), max_weapons):
+            padded_weapons.append(
+                Weapon(
+                    id=f"__inactive_weapon_{idx}",
+                    x=0.0,
+                    y=0.0,
+                    munition_type_id=default_munition_id,
+                    ammo_capacity=0,
+                )
+            )
+
+        for idx in range(len(padded_targets), max_targets):
+            padded_targets.append(
+                Target(
+                    id=f"__inactive_target_{idx}",
+                    x=0.0,
+                    y=0.0,
+                    required_damage=0.0,
+                    time_window=(0.0, 0.0),
+                )
+            )
+
+        weapons = padded_weapons
+        targets = padded_targets
+
     base_data = build_scenario_matrices(munition_types, weapons, targets)
     script = DWTAScenarioScript(waves=waves or []) if scenario_mode == "scripted_waves" else None
     return DWTAEnvironment(

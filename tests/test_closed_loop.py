@@ -7,6 +7,9 @@ from controller.control_semantics import ControlState
 from controller.operator_space import OperatorCapabilities, OperatorParams
 from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
+from problems.dwta.live_cache import DWTALiveCache
+from problems.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
+from problems.dwta.scenario_builder import build_dynamic_scenario
 from sensing.pareto_state import ParetoStateSensor
 
 
@@ -220,3 +223,53 @@ def test_closed_loop_applies_applied_params_not_requested_params() -> None:
     runner.run(generations=2)
 
     assert solver.config.repair_prob == 0.2
+
+
+def test_closed_loop_applies_dwta_runtime_events_and_logs() -> None:
+    scenario = build_dynamic_scenario(
+        munition_types=[MunitionType(id="m1", max_range=9.0, flight_speed=3.0, lethality=2.0)],
+        weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="m1", ammo_capacity=3)],
+        targets=[Target(id="t1", x=2.0, y=0.0, required_damage=2.0, time_window=(0.0, 4.0))],
+        scenario_mode="scripted_waves",
+        max_weapons=2,
+        max_targets=2,
+        waves=[
+            DWTAWaveEvent(
+                wave_id="disable_w1",
+                trigger_generation=1,
+                event_type="disable_weapons",
+                payload={"weapon_ids": ["w1"]},
+            ),
+            DWTAWaveEvent(
+                wave_id="inject_t2",
+                trigger_generation=2,
+                event_type="inject_targets",
+                payload={"targets": [{"id": "t2", "x": 3.0, "y": 0.0, "required_damage": 2.0, "time_window": [0.0, 4.0]}]},
+            ),
+        ],
+    )
+    live_cache = DWTALiveCache(scenario)
+    live_cache.refresh()
+
+    solver = NSGA2Solver(
+        n_tasks=0,
+        n_resources=1,
+        cost_matrix=[],
+        task_loads=[],
+        capacities=[],
+        config=NSGA2Config(population_size=8, generations=3, crossover_prob=0.9, mutation_prob=0.1, seed=3),
+        dwta_data=scenario.base_data,
+        dwta_live_cache=live_cache,
+    )
+    runner = ClosedLoopRunner(
+        solver=solver,
+        sensor=ParetoStateSensor(),
+        controller=RuleBasedController(RuleControllerConfig(control_interval=1)),
+        logger=InMemoryLogger(),
+    )
+    states = runner.run(generations=3)
+    runtime_events = [event for event in runner.logger.events if event["event"] == "runtime_event"]  # type: ignore[union-attr]
+
+    assert len(states) == 4
+    assert len(runtime_events) == 2
+    assert all(event["live_cache_invalidated"] is True for event in runtime_events)

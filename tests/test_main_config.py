@@ -110,3 +110,13 @@ def test_load_dwta_scripted_config() -> None:
     assert cfg.problem.max_weapons == 4
     assert cfg.problem.max_targets == 6
     assert len(cfg.problem.waves) == 2
+
+
+def test_load_dwta_scripted_waves_smoke_config() -> None:
+    cfg = load_config("experiments/configs/dwta_scripted_waves_smoke.yaml")
+    assert cfg.problem.problem_type == "dwta"
+    assert cfg.problem.scenario_mode == "scripted_waves"
+    assert cfg.problem.max_weapons == 4
+    assert cfg.problem.max_targets == 5
+    assert len(cfg.problem.waves) == 3
+    assert cfg.problem.waves[0].event_type == "disable_weapons"
