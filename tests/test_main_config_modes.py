@@ -207,3 +207,33 @@ logging:
 
     assert summary1["num_actions"] == summary2["num_actions"]
     assert summary1["num_experiences"] == summary2["num_experiences"]
+
+
+def test_scripted_dwta_dynamic_summary_fields_exist() -> None:
+    summary = run_experiment("experiments/configs/dwta_scripted_waves_smoke.yaml")
+    payload = json.loads(Path(summary["summary_path"]).read_text(encoding="utf-8"))
+    dynamic = payload.get("dynamic_summary", {})
+
+    for field in [
+        "num_events",
+        "event_types_seen",
+        "post_event_recovery_generations_mean",
+        "cumulative_unmet_damage",
+        "cumulative_resource_consumption",
+        "wave_completion_rate",
+        "event_triggered_actions",
+    ]:
+        assert field in dynamic
+
+    generation_events = Path(payload["generation_log_path"]).read_text(encoding="utf-8").strip().splitlines()
+    assert generation_events
+    final_generation = json.loads(generation_events[-1])
+    for field in ["active_targets_count", "active_weapons_count", "current_wave_id", "cache_refresh_count"]:
+        assert field in final_generation
+
+    if payload["experiences_path"]:
+        experience_lines = Path(payload["experiences_path"]).read_text(encoding="utf-8").strip().splitlines()
+        if experience_lines:
+            record = json.loads(experience_lines[0])
+            for field in ["stage_id", "wave_id", "trigger_event_id"]:
+                assert field in record

@@ -109,6 +109,9 @@ def test_closed_loop_runs_and_logs_actions() -> None:
     assert "crowding_entropy" in latest_state_event
     assert "d_dec" in latest_state_event
     assert "d_front" in latest_state_event
+    assert "active_targets_count" in latest_state_event
+    assert "active_weapons_count" in latest_state_event
+    assert "cache_refresh_count" in latest_state_event
     assert 0.0 <= solver.config.mutation_prob <= 1.0
     assert 0.0 <= solver.config.crossover_prob <= 1.0
 
@@ -132,7 +135,15 @@ def test_closed_loop_records_experience_chain() -> None:
 
     assert len(experience_pool) == 2
     first = experience_pool.recent(1)[0]
-    assert set(first.to_dict().keys()) == {"state", "action", "reward", "next_state"}
+    assert set(first.to_dict().keys()) == {
+        "state",
+        "action",
+        "reward",
+        "next_state",
+        "stage_id",
+        "wave_id",
+        "trigger_event_id",
+    }
     assert "crowding_entropy" in first.state
     assert "d_dec" in first.state
     assert "d_front" in first.state
@@ -276,6 +287,7 @@ def test_closed_loop_applies_dwta_runtime_events_and_logs() -> None:
     assert len(states) == 4
     assert len(runtime_events) == 2
     assert all(event["live_cache_invalidated"] is True for event in runtime_events)
+    assert all(int(event["cache_refresh_count"]) >= 2 for event in runtime_events)
 
 
 def test_closed_loop_supports_periodic_and_event_trigger_with_cooldown() -> None:
@@ -337,3 +349,5 @@ def test_closed_loop_supports_periodic_and_event_trigger_with_cooldown() -> None
     assert "periodic" in trigger_types
     assert "event" in trigger_types
     assert any(bool(event["cooldown_skipped"]) for event in skip_events)
+    event_actions = [event for event in action_events if event["trigger_type"] == "event"]
+    assert all(event["trigger_event_id"] for event in event_actions)

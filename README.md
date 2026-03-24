@@ -111,6 +111,17 @@ python -m experiments.export_results --runs-root experiments/runs/paper --output
 - `experiences.jsonl`：经验日志（memory 启用时）
 - `summary.json`：本次运行摘要（最终指标、参数、日志路径）
 
+### 动态 DWTA 指标补充（为何不能只看 `final_hv`）
+
+在 `scripted_waves` / hard-realworld 动态场景中，单一 `final_hv` 容易掩盖过程风险：
+
+- 事件冲击后是否恢复，需要看 `post_event_recovery_generations_mean`；
+- 任务压力与资源退化是累积过程，需要看 `cumulative_unmet_damage` 与 `cumulative_resource_consumption`；
+- 波次任务执行完整性，需要看 `wave_completion_rate`；
+- 控制器是否真正响应事件，需要看 `event_triggered_actions` 与 `event_types_seen`。
+
+因此，`final_hv` 只描述终点质量，动态 DWTA 还必须结合事件与时序指标描述“稳定性 + 韧性 + 完成度”。
+
 ## 消融开关
 
 `experiments/ablations/switches.py` 目前支持：

@@ -55,6 +55,8 @@ class DWTALiveCache:
         self.environment = environment
         self._snapshot: DWTALiveSnapshot | None = None
         self._cached_epoch: int | None = None
+        # Cumulative count of actual cache rebuilds (not cache hits).
+        self._refresh_count: int = 0
 
     def invalidate(self) -> None:
         """Manually mark current cache as invalid."""
@@ -69,6 +71,7 @@ class DWTALiveCache:
         snapshot = self._build_snapshot()
         self._snapshot = snapshot
         self._cached_epoch = self.environment.state_epoch
+        self._refresh_count += 1
         # Keep the legacy static snapshot in sync for old call sites.
         self.environment.base_data = snapshot.as_benchmark_data()
         return snapshot
@@ -80,6 +83,11 @@ class DWTALiveCache:
     def as_benchmark_data(self) -> DWTABenchmarkData:
         """Compatibility adapter for static DWTA code paths."""
         return self.get_snapshot().as_benchmark_data()
+
+    @property
+    def refresh_count(self) -> int:
+        """Return cumulative count of refresh rebuilds."""
+        return self._refresh_count
 
     def _build_snapshot(self) -> DWTALiveSnapshot:
         """Build all environment-dependent matrices via NumPy vectorization."""
