@@ -146,6 +146,9 @@ def test_rule_controller_config_validates_control_interval() -> None:
     with pytest.raises(ValueError, match="control_interval"):
         RuleControllerConfig(control_interval=0)
 
+    with pytest.raises(ValueError, match="event_control_cooldown"):
+        RuleControllerConfig(event_control_cooldown=-1)
+
 
 def test_rule_controller_decide_backwards_compatible_signature() -> None:
     solver = _build_solver()
@@ -273,3 +276,64 @@ def test_closed_loop_applies_dwta_runtime_events_and_logs() -> None:
     assert len(states) == 4
     assert len(runtime_events) == 2
     assert all(event["live_cache_invalidated"] is True for event in runtime_events)
+
+
+def test_closed_loop_supports_periodic_and_event_trigger_with_cooldown() -> None:
+    scenario = build_dynamic_scenario(
+        munition_types=[MunitionType(id="m1", max_range=9.0, flight_speed=3.0, lethality=2.0)],
+        weapons=[Weapon(id="w1", x=0.0, y=0.0, munition_type_id="m1", ammo_capacity=3)],
+        targets=[Target(id="t1", x=2.0, y=0.0, required_damage=2.0, time_window=(0.0, 4.0))],
+        scenario_mode="scripted_waves",
+        max_weapons=2,
+        max_targets=2,
+        waves=[
+            DWTAWaveEvent(
+                wave_id="disable_w1",
+                trigger_generation=1,
+                event_type="disable_weapons",
+                payload={"weapon_ids": ["w1"]},
+            ),
+            DWTAWaveEvent(
+                wave_id="inject_t2",
+                trigger_generation=2,
+                event_type="inject_targets",
+                payload={"targets": [{"id": "t2", "x": 3.0, "y": 0.0, "required_damage": 2.0, "time_window": [0.0, 4.0]}]},
+            ),
+        ],
+    )
+    live_cache = DWTALiveCache(scenario)
+    live_cache.refresh()
+
+    solver = NSGA2Solver(
+        n_tasks=0,
+        n_resources=1,
+        cost_matrix=[],
+        task_loads=[],
+        capacities=[],
+        config=NSGA2Config(population_size=8, generations=5, crossover_prob=0.9, mutation_prob=0.1, seed=3),
+        dwta_data=scenario.base_data,
+        dwta_live_cache=live_cache,
+    )
+    logger = InMemoryLogger()
+    runner = ClosedLoopRunner(
+        solver=solver,
+        sensor=ParetoStateSensor(),
+        controller=RuleBasedController(
+            RuleControllerConfig(
+                control_interval=2,
+                event_triggered_control=True,
+                event_control_cooldown=1,
+                forced_control_on_major_event=True,
+            )
+        ),
+        logger=logger,
+    )
+    runner.run(generations=5)
+
+    action_events = [event for event in logger.events if event["event"] == "action"]
+    skip_events = [event for event in logger.events if event["event"] == "control_skip"]
+
+    trigger_types = {str(event["trigger_type"]) for event in action_events}
+    assert "periodic" in trigger_types
+    assert "event" in trigger_types
+    assert any(bool(event["cooldown_skipped"]) for event in skip_events)

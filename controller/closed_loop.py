@@ -55,6 +55,9 @@ class RuleControllerConfig:
     """
 
     control_interval: int = 5
+    event_triggered_control: bool = False
+    event_control_cooldown: int = 0
+    forced_control_on_major_event: bool = False
     min_mutation_prob: float = 0.02
     max_mutation_prob: float = 0.8
     min_crossover_prob: float = 0.4
@@ -81,6 +84,8 @@ class RuleControllerConfig:
         """Validate controller bounds to protect runtime experiments."""
         if self.control_interval <= 0:
             raise ValueError("control_interval must be > 0")
+        if self.event_control_cooldown < 0:
+            raise ValueError("event_control_cooldown must be >= 0")
         if not 0.0 <= self.min_mutation_prob <= self.max_mutation_prob <= 1.0:
             raise ValueError("mutation probability bounds must satisfy 0 <= min <= max <= 1")
         if not 0.0 <= self.min_crossover_prob <= self.max_crossover_prob <= 1.0:
@@ -118,6 +123,9 @@ class ControlAction:
     control_state: ControlState = ControlState.MAINTAIN_BALANCE
     reason_detail: str = ""
     decision_runtime_s: float = 0.0
+    trigger_type: str = "periodic"
+    trigger_event_id: str | None = None
+    cooldown_skipped: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the action for logging and experience replay."""
@@ -154,6 +162,9 @@ class RuleBasedController:
     def __init__(self, config: RuleControllerConfig) -> None:
         self.config = config
         self.control_interval = config.control_interval
+        self.event_triggered_control = config.event_triggered_control
+        self.event_control_cooldown = config.event_control_cooldown
+        self.forced_control_on_major_event = config.forced_control_on_major_event
 
     def decide(
         self,
@@ -256,14 +267,22 @@ class LLMChainController:
         *,
         control_interval: int,
         experience_lookback: int,
+        event_triggered_control: bool = False,
+        event_control_cooldown: int = 0,
+        forced_control_on_major_event: bool = False,
         analyst: Any,
         strategist: Any,
         actuator: Any,
     ) -> None:
         if control_interval <= 0:
             raise ValueError("control_interval must be > 0")
+        if event_control_cooldown < 0:
+            raise ValueError("event_control_cooldown must be >= 0")
         self.control_interval = control_interval
         self.experience_lookback = max(1, experience_lookback)
+        self.event_triggered_control = event_triggered_control
+        self.event_control_cooldown = event_control_cooldown
+        self.forced_control_on_major_event = forced_control_on_major_event
         self.analyst = analyst
         self.strategist = strategist
         self.actuator = actuator
@@ -331,6 +350,8 @@ class ClosedLoopRunner:
         previous_state: ParetoState | None = None
         states: list[ParetoState] = []
         pending_experience: _PendingExperience | None = None
+        last_control_generation: int | None = None
+        latest_event_id: str | None = None
 
         # Allow scripted generation-0 events before baseline sensing so that
         # initial state reflects the post-event environment snapshot.
@@ -358,6 +379,7 @@ class ClosedLoopRunner:
                 population = self.solver.reevaluate_population(population)
                 for event in runtime_events:
                     self._log_runtime_event(event, generation=generation)
+                latest_event_id = _runtime_event_id(runtime_events[-1], generation=generation)
             population = self.solver.evolve_one_generation(population)
             state = self.sensor.sense(
                 generation=generation,
@@ -376,7 +398,22 @@ class ClosedLoopRunner:
 
             # Do not schedule a new action after the final generation because no
             # subsequent state would exist to complete the transition.
-            if generation % self.controller.control_interval == 0 and generation < generations:
+            trigger_type, cooldown_skipped = self._resolve_trigger(
+                generation=generation,
+                generations=generations,
+                runtime_events=runtime_events,
+                last_control_generation=last_control_generation,
+            )
+
+            if cooldown_skipped:
+                self._log_control_skip(
+                    generation=generation,
+                    trigger_type=trigger_type,
+                    event_id=latest_event_id,
+                    last_control_generation=last_control_generation,
+                )
+
+            if trigger_type is not None:
                 recent_experiences = self._recent_experiences()
                 action_started = time.perf_counter()
                 action = self.controller.decide(
@@ -386,6 +423,9 @@ class ClosedLoopRunner:
                     capabilities=self.solver.get_operator_capabilities(),
                 )
                 action.decision_runtime_s = time.perf_counter() - action_started
+                action.trigger_type = trigger_type
+                action.trigger_event_id = latest_event_id if trigger_type == "event" else None
+                action.cooldown_skipped = False
                 applied_params = action.applied_params or {}
                 self.solver.set_operator_params(
                     OperatorParams(
@@ -403,6 +443,7 @@ class ClosedLoopRunner:
                 )
                 self._log_action(action)
                 pending_experience = _PendingExperience(state=state, action=action)
+                last_control_generation = generation
 
             previous_state = state
 
@@ -444,8 +485,65 @@ class ClosedLoopRunner:
             {
                 "event": "runtime_event",
                 "generation": generation,
+                "runtime_event_id": _runtime_event_id(runtime_event, generation=generation),
                 **runtime_event,
                 "live_cache_invalidated": True,
+            }
+        )
+
+    def _resolve_trigger(
+        self,
+        *,
+        generation: int,
+        generations: int,
+        runtime_events: list[dict[str, Any]],
+        last_control_generation: int | None,
+    ) -> tuple[str | None, bool]:
+        """Determine whether controller should run and record cooldown skips."""
+        if generation >= generations:
+            return None, False
+
+        periodic_due = generation % self.controller.control_interval == 0
+        event_due = False
+        event_enabled = bool(getattr(self.controller, "event_triggered_control", False))
+        forced_on_major = bool(getattr(self.controller, "forced_control_on_major_event", False))
+
+        if runtime_events and (event_enabled or forced_on_major):
+            event_due = True
+
+        if not periodic_due and not event_due:
+            return None, False
+
+        cooldown = int(getattr(self.controller, "event_control_cooldown", 0))
+        if last_control_generation is not None and generation - last_control_generation <= cooldown:
+            preferred = "event" if event_due else "periodic"
+            return preferred, True
+
+        if event_due:
+            return "event", False
+        if periodic_due:
+            return "periodic", False
+        return None, False
+
+    def _log_control_skip(
+        self,
+        *,
+        generation: int,
+        trigger_type: str | None,
+        event_id: str | None,
+        last_control_generation: int | None,
+    ) -> None:
+        """Log skipped control windows when cooldown suppresses triggering."""
+        if self.logger is None:
+            return
+        self.logger.log(
+            {
+                "event": "control_skip",
+                "generation": generation,
+                "trigger_type": trigger_type,
+                "trigger_event_id": event_id,
+                "cooldown_skipped": True,
+                "last_control_generation": last_control_generation,
             }
         )
 
@@ -482,3 +580,14 @@ def compute_reward(*, state: ParetoState, next_state: ParetoState, config: Rewar
 def _clip(value: float, low: float, high: float) -> float:
     """Clamp a value into the closed interval ``[low, high]``."""
     return max(low, min(high, value))
+
+
+def _runtime_event_id(runtime_event: dict[str, Any], *, generation: int) -> str:
+    """Build a stable event identifier for control-trigger bookkeeping."""
+    wave_id = runtime_event.get("wave_id")
+    if isinstance(wave_id, str) and wave_id:
+        return wave_id
+    event_type = runtime_event.get("event_type")
+    if isinstance(event_type, str) and event_type:
+        return f"g{generation}:{event_type}"
+    return f"g{generation}:runtime_event"

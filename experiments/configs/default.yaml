@@ -28,6 +28,12 @@ optimizer:
 
 controller:
   control_interval: 4
+  # Enable extra controller calls when runtime events arrive.
+  event_triggered_control: false
+  # Cooldown (in generations) after a control action to prevent repeated LLM calls.
+  event_control_cooldown: 0
+  # Force event-triggered control for major runtime events even if event_triggered_control is false.
+  forced_control_on_major_event: false
   min_mutation_prob: 0.03
   max_mutation_prob: 0.75
   min_crossover_prob: 0.45
