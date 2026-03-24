@@ -14,6 +14,10 @@ class ExperienceRecord:
     action: dict[str, Any]
     reward: float
     next_state: dict[str, Any]
+    # Optional dynamic-context fields for DWTA scripted stages/waves.
+    stage_id: str | None = None
+    wave_id: str | None = None
+    trigger_event_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """序列化 该 记录 用于 存储后端."""

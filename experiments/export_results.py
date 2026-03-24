@@ -22,6 +22,9 @@ EXPORT_FIELDS: tuple[str, ...] = (
     "feasible_ratio",
     "runtime",
     "llm_overhead",
+    "num_events",
+    "wave_completion_rate",
+    "event_triggered_actions",
     "summary_path",
 )
 
@@ -36,6 +39,7 @@ def _iter_summary_paths(runs_root: Path) -> list[Path]:
 
 
 def _to_row(summary: dict[str, Any], summary_path: Path) -> dict[str, Any]:
+    dynamic = summary.get("dynamic_summary", {}) if isinstance(summary.get("dynamic_summary"), dict) else {}
     return {
         "method": summary.get("method") or summary.get("controller_mode") or "unknown",
         "benchmark": summary.get("benchmark") or "unknown",
@@ -47,6 +51,9 @@ def _to_row(summary: dict[str, Any], summary_path: Path) -> dict[str, Any]:
         "feasible_ratio": float(summary.get("final_feasible_ratio", 0.0)),
         "runtime": float(summary.get("runtime_s", 0.0)),
         "llm_overhead": float(summary.get("llm_overhead_s", 0.0)),
+        "num_events": int(dynamic.get("num_events", 0)),
+        "wave_completion_rate": float(dynamic.get("wave_completion_rate", 0.0)),
+        "event_triggered_actions": int(dynamic.get("event_triggered_actions", 0)),
         "summary_path": str(summary_path),
     }
 
@@ -72,7 +79,18 @@ def build_aggregates(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """构建 分组的 aggregates 用于 方法 与 方法+基准问题 views."""
     by_method: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     by_method_benchmark: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-    metric_fields = ("hv", "igd_plus", "spacing", "spread", "feasible_ratio", "runtime", "llm_overhead")
+    metric_fields = (
+        "hv",
+        "igd_plus",
+        "spacing",
+        "spread",
+        "feasible_ratio",
+        "runtime",
+        "llm_overhead",
+        "num_events",
+        "wave_completion_rate",
+        "event_triggered_actions",
+    )
 
     for row in rows:
         method = str(row["method"])

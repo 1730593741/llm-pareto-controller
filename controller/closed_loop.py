@@ -312,6 +312,9 @@ class _PendingExperience:
 
     state: ParetoState
     action: ControlAction
+    stage_id: str | None = None
+    wave_id: str | None = None
+    trigger_event_id: str | None = None
 
 
 class ClosedLoopRunner:
@@ -352,6 +355,7 @@ class ClosedLoopRunner:
         pending_experience: _PendingExperience | None = None
         last_control_generation: int | None = None
         latest_event_id: str | None = None
+        current_wave_id: str | None = None
 
         # Allow scripted generation-0 events before baseline sensing so that
         # initial state reflects the post-event environment snapshot.
@@ -360,6 +364,7 @@ class ClosedLoopRunner:
             population = self.solver.reevaluate_population(population)
             for event in initial_events:
                 self._log_runtime_event(event, generation=0)
+            current_wave_id = _resolve_wave_id(initial_events[-1])
 
         # Generation 0 is sensed before any controller intervention so the run
         # always has a baseline state for logging and reward computation.
@@ -380,6 +385,7 @@ class ClosedLoopRunner:
                 for event in runtime_events:
                     self._log_runtime_event(event, generation=generation)
                 latest_event_id = _runtime_event_id(runtime_events[-1], generation=generation)
+                current_wave_id = _resolve_wave_id(runtime_events[-1]) or current_wave_id
             population = self.solver.evolve_one_generation(population)
             state = self.sensor.sense(
                 generation=generation,
@@ -388,7 +394,7 @@ class ClosedLoopRunner:
                 reference_point=reference_point,
             )
             states.append(state)
-            self._log_state(state, self.solver.get_operator_params())
+            self._log_state(state, self.solver.get_operator_params(), current_wave_id=current_wave_id)
 
             # A state-action pair becomes a full experience only after the next
             # state has been observed.
@@ -442,7 +448,14 @@ class ClosedLoopRunner:
                     )
                 )
                 self._log_action(action)
-                pending_experience = _PendingExperience(state=state, action=action)
+                stage_id = self._resolve_stage_id(generation=generation, wave_id=current_wave_id)
+                pending_experience = _PendingExperience(
+                    state=state,
+                    action=action,
+                    stage_id=stage_id,
+                    wave_id=current_wave_id,
+                    trigger_event_id=action.trigger_event_id,
+                )
                 last_control_generation = generation
 
             previous_state = state
@@ -456,10 +469,11 @@ class ClosedLoopRunner:
         lookback = getattr(self.controller, "experience_lookback", 5)
         return self.experience_pool.recent(int(lookback))
 
-    def _log_state(self, state: ParetoState, params: OperatorParams) -> None:
+    def _log_state(self, state: ParetoState, params: OperatorParams, *, current_wave_id: str | None = None) -> None:
         """Emit a state event enriched with the active operator snapshot."""
         if self.logger is None:
             return
+        dynamic = self._dynamic_context()
         self.logger.log(
             {
                 "event": "state",
@@ -468,6 +482,8 @@ class ClosedLoopRunner:
                 "crossover_prob": params.crossover_prob,
                 "operator_params": params.to_dict(),
                 "operator_capabilities": self.solver.get_operator_capabilities().to_dict(),
+                "current_wave_id": current_wave_id,
+                **dynamic,
             }
         )
 
@@ -488,6 +504,7 @@ class ClosedLoopRunner:
                 "runtime_event_id": _runtime_event_id(runtime_event, generation=generation),
                 **runtime_event,
                 "live_cache_invalidated": True,
+                "cache_refresh_count": self._cache_refresh_count(),
             }
         )
 
@@ -558,11 +575,43 @@ class ClosedLoopRunner:
             action=pending.action.to_dict(),
             reward=reward,
             next_state=next_state.to_dict(),
+            stage_id=pending.stage_id,
+            wave_id=pending.wave_id,
+            trigger_event_id=pending.trigger_event_id,
         )
         if self.experience_pool is not None:
             self.experience_pool.append(record)
         if self.experience_logger is not None:
             self.experience_logger.log(record)
+
+    def _dynamic_context(self) -> dict[str, Any]:
+        """Return DWTA dynamic context fields for generation-level logs."""
+        live_cache = self.solver.dwta_live_cache
+        if live_cache is None:
+            return {
+                "active_targets_count": None,
+                "active_weapons_count": None,
+                "cache_refresh_count": 0,
+            }
+        snapshot = live_cache.get_snapshot()
+        return {
+            "active_targets_count": int(snapshot.target_active_mask.sum()),
+            "active_weapons_count": int(snapshot.weapon_active_mask.sum()),
+            "cache_refresh_count": int(live_cache.refresh_count),
+        }
+
+    def _cache_refresh_count(self) -> int:
+        """Read cache refresh count with static-mode fallback."""
+        live_cache = self.solver.dwta_live_cache
+        if live_cache is None:
+            return 0
+        return int(live_cache.refresh_count)
+
+    def _resolve_stage_id(self, *, generation: int, wave_id: str | None) -> str:
+        """Build a lightweight stage identifier for experience context."""
+        if wave_id:
+            return f"wave:{wave_id}:g{generation}"
+        return f"static:g{generation}"
 
 
 def compute_reward(*, state: ParetoState, next_state: ParetoState, config: RewardConfig) -> float:
@@ -591,3 +640,11 @@ def _runtime_event_id(runtime_event: dict[str, Any], *, generation: int) -> str:
     if isinstance(event_type, str) and event_type:
         return f"g{generation}:{event_type}"
     return f"g{generation}:runtime_event"
+
+
+def _resolve_wave_id(runtime_event: dict[str, Any]) -> str | None:
+    """Return wave id when present and non-empty."""
+    wave_id = runtime_event.get("wave_id")
+    if isinstance(wave_id, str) and wave_id:
+        return wave_id
+    return None

@@ -658,6 +658,93 @@ def _count_control_states(action_events: list[dict[str, Any]]) -> dict[str, int]
     return counts
 
 
+def _build_dynamic_summary(
+    *,
+    config: ExperimentConfig,
+    generation_events: list[dict[str, Any]],
+    action_events: list[dict[str, Any]],
+    runtime_events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build dynamic DWTA metrics while preserving legacy summary fields."""
+    event_types_seen = sorted(
+        {
+            str(event.get("event_type"))
+            for event in runtime_events
+            if isinstance(event.get("event_type"), str) and str(event.get("event_type"))
+        }
+    )
+    num_events = len(runtime_events)
+    event_triggered_actions = sum(1 for event in action_events if event.get("trigger_type") == "event")
+
+    # Aggregate generation-level proxies for dynamic pressure/consumption.
+    cumulative_unmet_damage = 0.0
+    cumulative_resource_consumption = 0.0
+    if generation_events:
+        baseline_active_weapons = generation_events[0].get("active_weapons_count")
+        if isinstance(baseline_active_weapons, (int, float)):
+            baseline = float(baseline_active_weapons)
+        else:
+            baseline = 0.0
+        for event in generation_events:
+            active_targets = event.get("active_targets_count")
+            if isinstance(active_targets, (int, float)):
+                cumulative_unmet_damage += float(active_targets)
+            active_weapons = event.get("active_weapons_count")
+            if isinstance(active_weapons, (int, float)):
+                cumulative_resource_consumption += max(0.0, baseline - float(active_weapons))
+
+    total_waves = len(config.problem.waves) if config.problem.problem_type == "dwta" else 0
+    wave_completion_rate = (float(num_events) / float(total_waves)) if total_waves > 0 else 0.0
+
+    post_event_recovery = _post_event_recovery_generations_mean(generation_events, runtime_events)
+
+    return {
+        "num_events": num_events,
+        "event_types_seen": event_types_seen,
+        "post_event_recovery_generations_mean": post_event_recovery,
+        "cumulative_unmet_damage": cumulative_unmet_damage,
+        "cumulative_resource_consumption": cumulative_resource_consumption,
+        "wave_completion_rate": wave_completion_rate,
+        "event_triggered_actions": event_triggered_actions,
+    }
+
+
+def _post_event_recovery_generations_mean(
+    generation_events: list[dict[str, Any]], runtime_events: list[dict[str, Any]]
+) -> float:
+    """Estimate mean generations needed to re-enter positive-HV progress after events."""
+    if not generation_events or not runtime_events:
+        return 0.0
+    by_generation: dict[int, dict[str, Any]] = {}
+    for event in generation_events:
+        generation = event.get("generation")
+        if isinstance(generation, int):
+            by_generation[generation] = event
+
+    horizons: list[float] = []
+    max_generation = max(by_generation.keys(), default=0)
+    for event in runtime_events:
+        g0 = event.get("generation")
+        if not isinstance(g0, int):
+            continue
+        steps: float | None = None
+        for gen in range(g0 + 1, max_generation + 1):
+            candidate = by_generation.get(gen)
+            if candidate is None:
+                continue
+            delta_hv = candidate.get("delta_hv")
+            if isinstance(delta_hv, (int, float)) and float(delta_hv) > 0.0:
+                steps = float(gen - g0)
+                break
+        if steps is None:
+            steps = float(max(0, max_generation - g0))
+        horizons.append(steps)
+
+    if not horizons:
+        return 0.0
+    return float(sum(horizons) / len(horizons))
+
+
 def _load_true_reference_front(path: Path) -> list[tuple[float, ...]]:
     with path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
@@ -709,6 +796,9 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
 
     generation_events = _read_jsonl(runtime.artifacts.generation_log_path)
     action_events = _read_jsonl(runtime.artifacts.action_log_path)
+    runtime_events = [
+        event for event in _read_jsonl(runtime.artifacts.events_path) if event.get("event") == "runtime_event"
+    ]
     final_generation_event = generation_events[-1] if generation_events else {}
     num_experiences = 0
     if runtime.artifacts.experiences_path and runtime.artifacts.experiences_path.exists():
@@ -724,6 +814,12 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     final_spread = spread(final_front, reference_front.points) if final_front and reference_front.points else 0.0
 
     llm_overhead_s = sum(float(event.get("decision_runtime_s", 0.0)) for event in action_events)
+    dynamic_summary = _build_dynamic_summary(
+        config=config,
+        generation_events=generation_events,
+        action_events=action_events,
+        runtime_events=runtime_events,
+    )
 
     summary = {
         "experiment": config.experiment.model_dump(mode="json"),
@@ -770,6 +866,8 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
         "llm_overhead_s": llm_overhead_s,
         "control_state_counts": _count_control_states(action_events),
         "num_experiences": num_experiences,
+        # Dynamic metrics are nested to keep legacy top-level summary schema stable.
+        "dynamic_summary": dynamic_summary,
         "config_snapshot_path": str(runtime.artifacts.config_snapshot_path),
         "generation_log_path": str(runtime.artifacts.generation_log_path),
         "action_log_path": str(runtime.artifacts.action_log_path),
