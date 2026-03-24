@@ -26,11 +26,11 @@ def build_scenario_matrices(
     targets: list[Target],
 ) -> DWTABenchmarkData:
     """Precompute 兼容性 与 lethality matrices once at setup time.
-    
-        Compatibility 规则:
-        - 距离 <= max_range
-        - flight_time 在 [Target.time_window.start, Target.time_window.end]
-        """
+
+    Compatibility 规则:
+    - 距离 <= max_range
+    - flight_time 在 [Target.time_window.start, Target.time_window.end]
+    """
     munition_by_id = {munition.id: munition for munition in munition_types}
 
     compatibility_matrix: list[list[int]] = []
@@ -90,4 +90,7 @@ def build_dynamic_scenario(
         max_weapons=max_weapons,
         max_targets=max_targets,
         script=script,
+        munitions=list(munition_types),
+        weapons=list(weapons),
+        targets=list(targets),
     )
