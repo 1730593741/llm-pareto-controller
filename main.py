@@ -326,7 +326,8 @@ class LLMRuntimeConfig(BaseModel):
     model: str = "qwen3-max"
     timeout_s: float = 10.0
     max_retries: int = 2
-    api_key_env: str = "sk-d88a51409bb340dfb5f14fef03a990a0"
+    # Environment variable name for API key; never hardcode secrets here.
+    api_key_env: str = "OPENAI_API_KEY"
     base_url_env: str = "OPENAI_BASE_URL"
     model_env: str = "OPENAI_MODEL"
     base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -535,6 +536,9 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
     return LLMChainController(
         control_interval=config.controller.control_interval,
         experience_lookback=config.controller_mode.experience_lookback,
+        event_triggered_control=config.controller.event_triggered_control,
+        event_control_cooldown=config.controller.event_control_cooldown,
+        forced_control_on_major_event=config.controller.forced_control_on_major_event,
         analyst=analyst,
         strategist=strategist,
         actuator=actuator,

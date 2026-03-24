@@ -78,6 +78,12 @@ optimizer:
 
 controller:
   control_interval: 1
+  # Trigger an immediate control step when a DWTA runtime event is applied.
+  event_triggered_control: true
+  # Keep one generation cooldown after each control action.
+  event_control_cooldown: 1
+  # In scripted waves we treat runtime events as major by default.
+  forced_control_on_major_event: true
   min_mutation_prob: 0.02
   max_mutation_prob: 0.8
   min_crossover_prob: 0.4
