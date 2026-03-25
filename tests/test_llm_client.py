@@ -100,3 +100,20 @@ def test_llm_client_real_mode_success_with_fake_transport(monkeypatch) -> None:
     assert response.success is True
     assert response.mode_used == "real_llm"
     assert response.content == {"control_state": "maintain_balance", "rationale": "ok"}
+
+def test_llm_client_real_mode_uses_longer_read_timeout() -> None:
+    client = LLMClient(LLMClientConfig(mode="real_llm", timeout_s=10.0, min_read_timeout_s=25.0))
+
+    timeout = client._build_http_timeout()
+
+    assert timeout.connect == 10.0
+    assert timeout.read == 25.0
+
+
+def test_llm_client_real_mode_allows_disabling_timeout() -> None:
+    client = LLMClient(LLMClientConfig(mode="real_llm", timeout_s=0))
+
+    timeout = client._build_http_timeout()
+
+    assert timeout.connect is None
+    assert timeout.read is None

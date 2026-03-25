@@ -1,0 +1,88 @@
+{
+  "experiment": {
+    "name": "dwta_hard_realworld",
+    "seed": 42,
+    "method": "llm_pareto_controller",
+    "benchmark": "dwta_hard_realworld"
+  },
+  "controller_mode": "rule",
+  "method": "llm_pareto_controller",
+  "benchmark": "dwta_hard_realworld",
+  "seed": 42,
+  "source_config_path": "tmp_seed_configs_dwta_hard\\baseline_nsga2_dwta_hard_seed_42.yaml",
+  "run_id": "run-e104640b8bd6",
+  "config_fingerprint": "e104640b8bd647e1e33dabb33469282f762c16288638d6376299b5b816110c37",
+  "generations": 160,
+  "final_generation": 160,
+  "final_hv": 654.0688999999999,
+  "best_hv": 654.0688999999999,
+  "best_generation": 159,
+  "hv_auc": 410.82331024844757,
+  "mean_hv": 410.82331024844757,
+  "final_feasible_ratio": 1.0,
+  "final_rank1_ratio": 1.0,
+  "final_igd": 13.167450873130448,
+  "final_igd_plus": 13.167450873130448,
+  "final_spacing": 1.0173412477068406,
+  "final_spread": 0.5726121833506082,
+  "reference_front": {
+    "source": "intra_run_union_front",
+    "details": {
+      "num_events": 161,
+      "num_aggregated_points": 13307
+    },
+    "num_points": 708
+  },
+  "final_mutation_prob": 0.02,
+  "final_crossover_prob": 0.98,
+  "final_operator_params": {
+    "mutation_prob": 0.02,
+    "crossover_prob": 0.98,
+    "eta_c": 18.0,
+    "eta_m": 35.0,
+    "repair_prob": 1.0,
+    "local_search_prob": 0.12
+  },
+  "final_effective_params": {
+    "mutation_prob": 0.02,
+    "crossover_prob": 0.98,
+    "eta_c": 18.0,
+    "eta_m": 35.0,
+    "repair_prob": 1.0,
+    "local_search_prob": 0.12
+  },
+  "operator_capabilities": {
+    "supports_eta_c": true,
+    "supports_eta_m": true,
+    "supports_repair_prob": true,
+    "supports_local_search_prob": true
+  },
+  "events_path": "experiments\\runs\\dwta_hard_results\\baseline_nsga2\\seed_42\\events.jsonl",
+  "experiences_path": null,
+  "num_actions": 19,
+  "runtime_s": 114.33468620001804,
+  "llm_overhead_s": 0.0018019002163782716,
+  "control_state_counts": {
+    "increase_convergence": 8,
+    "maintain_balance": 11
+  },
+  "num_experiences": 0,
+  "dynamic_summary": {
+    "num_events": 6,
+    "event_types_seen": [
+      "ammo_delta",
+      "disable_weapons",
+      "inject_targets",
+      "target_priority_update",
+      "time_window_update"
+    ],
+    "post_event_recovery_generations_mean": 3.0,
+    "cumulative_unmet_damage": 2065.0,
+    "cumulative_resource_consumption": 282.0,
+    "wave_completion_rate": 1.0,
+    "event_triggered_actions": 6
+  },
+  "config_snapshot_path": "experiments\\runs\\dwta_hard_results\\baseline_nsga2\\seed_42\\config_snapshot.yaml",
+  "generation_log_path": "experiments\\runs\\dwta_hard_results\\baseline_nsga2\\seed_42\\generation_metrics.jsonl",
+  "action_log_path": "experiments\\runs\\dwta_hard_results\\baseline_nsga2\\seed_42\\actions.jsonl"
+}

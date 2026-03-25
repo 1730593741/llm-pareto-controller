@@ -324,7 +324,8 @@ class LLMRuntimeConfig(BaseModel):
 
     provider: str = "openai"
     model: str = "qwen3-max"
-    timeout_s: float = 10.0
+    timeout_s: float = 60.0
+    min_read_timeout_s: float = 60.0
     max_retries: int = 2
     # Environment variable name for API key; never hardcode secrets here.
     api_key_env: str = "OPENAI_API_KEY"
@@ -508,6 +509,7 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
             provider=config.llm.provider,
             model=config.llm.model,
             timeout_s=config.llm.timeout_s,
+            min_read_timeout_s=config.llm.min_read_timeout_s,
             max_retries=config.llm.max_retries,
             api_key_env=config.llm.api_key_env,
             base_url_env=config.llm.base_url_env,

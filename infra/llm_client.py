@@ -22,6 +22,7 @@ class LLMClientConfig:
     provider: str = "openai"
     model: str = "gpt-mock"
     timeout_s: float = 10.0
+    min_read_timeout_s: float = 60.0
     max_retries: int = 2
     api_key_env: str = "OPENAI_API_KEY"
     base_url_env: str = "OPENAI_BASE_URL"
@@ -127,7 +128,7 @@ class LLMClient:
         prompt_template: str,
     ) -> dict[str, Any]:
         max_retries = max(0, int(self.config.max_retries))
-        timeout = max(0.1, float(self.config.timeout_s))
+        timeout = self._build_http_timeout()
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 base_url,
@@ -152,6 +153,16 @@ class LLMClient:
         body = response.json()
         content_text = body["choices"][0]["message"]["content"]
         return json.loads(_strip_code_fence(content_text))
+
+    def _build_http_timeout(self) -> httpx.Timeout:
+        if float(self.config.timeout_s) <= 0:
+            return httpx.Timeout(timeout=None)
+
+        base_timeout = max(0.1, float(self.config.timeout_s))
+        min_read_timeout = max(0.1, float(self.config.min_read_timeout_s))
+        read_timeout = max(base_timeout, min_read_timeout)
+        return httpx.Timeout(timeout=base_timeout, read=read_timeout)
+
 
     def _mock_response(self, *, task: str, payload: dict[str, Any]) -> dict[str, Any]:
         state = payload.get("state", {})
