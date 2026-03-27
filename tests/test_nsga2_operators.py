@@ -8,8 +8,8 @@ from optimizers.nsga2.operators import (
     mutate_dwta_allocation,
     one_point_crossover,
 )
-from problems.dwta.constraints import constraint_breakdown
-from problems.dwta.repair import repair_allocation
+from src.dwta.constraints import constraint_breakdown
+from src.dwta.repair import repair_allocation
 
 
 def test_one_point_crossover_respects_genome_length_and_values() -> None:

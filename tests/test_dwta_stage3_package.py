@@ -6,9 +6,9 @@ import random
 
 from main import ProblemConfig, build_solver
 from optimizers.nsga2.solver import NSGA2Config
-from problems.dwta.constraints import constraint_breakdown
-from problems.dwta.objectives import compute_objectives
-from problems.dwta.repair import repair_allocation
+from src.dwta.constraints import constraint_breakdown
+from src.dwta.objectives import compute_objectives
+from src.dwta.repair import repair_allocation
 
 
 def test_dwta_objectives_compute_expected_values() -> None:

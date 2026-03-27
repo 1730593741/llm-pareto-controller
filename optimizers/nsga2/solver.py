@@ -30,12 +30,12 @@ from optimizers.nsga2.selection import (
     non_dominated_sort,
     parent_selection,
 )
-from problems.dwta.constraints import constraint_breakdown as dwta_constraint_breakdown
-from problems.dwta.encoding import random_allocation
-from problems.dwta.live_cache import DWTALiveCache
-from problems.dwta.model import DWTABenchmarkData
-from problems.dwta.objectives import compute_objectives as compute_dwta_objectives
-from problems.dwta.repair import repair_allocation
+from src.dwta.constraints import constraint_breakdown as dwta_constraint_breakdown
+from src.dwta.encoding import random_allocation
+from src.dwta.live_cache import DWTALiveCache
+from src.dwta.model import DWTABenchmarkData
+from src.dwta.objectives import compute_objectives as compute_dwta_objectives
+from src.dwta.repair import repair_allocation
 from problems.task_assignment.constraints import constraint_breakdown
 from problems.task_assignment.encoding import random_assignment
 from problems.task_assignment.objectives import compute_objectives

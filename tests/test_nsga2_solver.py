@@ -4,8 +4,8 @@ import pytest
 
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
 from controller.operator_space import OperatorParams
-from problems.dwta.precompute import build_precomputed_matrices
-from problems.dwta.model import MunitionType, Target, Weapon
+from src.dwta.precompute import build_precomputed_matrices
+from src.dwta.model import MunitionType, Target, Weapon
 
 
 def test_solver_runs_and_returns_annotated_population() -> None:

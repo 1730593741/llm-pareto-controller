@@ -38,15 +38,15 @@ from llm.strategist import Strategist
 from memory.experience_pool import ExperiencePool
 from experiments.logging import split_event_stream
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
-from problems.dwta.model import (
+from src.dwta.model import (
     DWTABenchmarkData,
     DWTAWaveEvent,
     MunitionType as DWTAMunitionType,
     Target as DWTATarget,
     Weapon as DWTAWeapon,
 )
-from problems.dwta.live_cache import DWTALiveCache
-from problems.dwta.scenario_builder import build_dynamic_scenario
+from src.dwta.live_cache import DWTALiveCache
+from src.dwta.scenario_builder import build_dynamic_scenario
 from sensing.pareto_state import ParetoStateSensor
 
 
