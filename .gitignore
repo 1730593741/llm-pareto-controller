@@ -13,6 +13,14 @@ venv/
 .coverage
 htmlcov/
 
+# Experiment-generated artifacts
+experiments/logs/
+experiments/runs/
+tmp_seed_configs/
+tmp_seed_configs_dwta/
+tmp_seed_configs_dwta_hard/
+tmp_seed_configs_dwta_large/
+
 # OS/editor files
 .DS_Store
 .vscode/

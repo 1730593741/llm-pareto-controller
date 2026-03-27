@@ -1,5 +1,0 @@
-{"event": "action", "generation": 4, "mutation_prob": 0.15000000000000002, "crossover_prob": 0.88, "reason": "stagnation_up_mutation"}
-{"event": "action", "generation": 8, "mutation_prob": 0.2, "crossover_prob": 0.86, "reason": "stagnation_up_mutation"}
-{"event": "action", "generation": 12, "mutation_prob": 0.25, "crossover_prob": 0.84, "reason": "stagnation_up_mutation"}
-{"event": "action", "generation": 16, "mutation_prob": 0.3, "crossover_prob": 0.82, "reason": "stagnation_up_mutation"}
-{"event": "action", "generation": 20, "mutation_prob": 0.35, "crossover_prob": 0.7999999999999999, "reason": "stagnation_up_mutation"}
