@@ -147,7 +147,7 @@ controller_mode:
 memory:
   enabled: true
   # 长窗口 300：用于吸收多波次非平稳状态历史。
-  memory_window: 120
+  memory_window: 300
 
 logging:
   output_dir: experiments/logs/dwta_hard_realworld
