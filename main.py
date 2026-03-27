@@ -190,8 +190,6 @@ class DWTAWaveEventConfig(BaseModel):
 class ProblemConfig(BaseModel):
     """问题规格 用于 任务-分配 与 DWTA 基准问题."""
 
-    problem_type: Literal["task_assignment", "dwta"] = "task_assignment"
-
     n_tasks: int = 0
     n_resources: int = 1
     cost_matrix: list[list[float]] = Field(default_factory=list)
@@ -214,13 +212,34 @@ class ProblemConfig(BaseModel):
     waves: list[DWTAWaveEventConfig] = Field(default_factory=list)
 
     @property
+    def problem_type(self) -> Literal["task_assignment", "dwta"]:
+        """向后兼容字段：由配置内容推断问题类型。"""
+        return "dwta" if self.is_dwta else "task_assignment"
+
+    @property
+    def is_dwta(self) -> bool:
+        return any(
+            value
+            for value in (
+                self.precomputed is not None,
+                bool(self.resolved_munition_types),
+                bool(self.weapons),
+                bool(self.targets),
+                bool(self.waves),
+                self.scenario_mode != "static",
+                self.max_weapons is not None,
+                self.max_targets is not None,
+            )
+        )
+
+    @property
     def resolved_munition_types(self) -> list[DWTAMunitionConfig]:
         """返回 DWTA Munition list，并带有 向后兼容 用于 old key names."""
         return self.munition_types or self.munitions or []
 
     @model_validator(mode="after")
     def _validate_shapes(self) -> "ProblemConfig":
-        if self.problem_type == "dwta":
+        if self.is_dwta:
             if self.scenario_mode not in {"static", "scripted_waves"}:
                 raise ValueError("dwta.scenario_mode must be one of static/scripted_waves")
             if self.max_weapons is not None and self.max_weapons <= 0:
@@ -363,19 +382,113 @@ class EvaluationConfig(BaseModel):
     true_pareto_front_path: str | None = None
 
 
+class AblationConfig(BaseModel):
+    """用于配置观测/历史/动作维度消融开关."""
+
+    disabled_observations: list[str] = Field(default_factory=list)
+    disable_history: bool = False
+    disabled_action_dimensions: list[str] = Field(default_factory=list)
+
+
+class ControllerConfig(BaseModel):
+    """实验导向控制配置：统一 rule/llm/memory 参数."""
+
+    rule: RuleControllerConfig = Field(default_factory=RuleControllerConfig)
+    mode: Literal["rule", "mock_llm", "real_llm"] = "rule"
+    experience_lookback: int = 5
+    memory_enabled: bool = True
+    memory_window: int = 100
+    experience_log_path: str | None = None
+    reward_alpha: float = 1.0
+    reward_beta: float = 0.1
+
+    def __getattr__(self, name: str) -> Any:
+        rule_fields = RuleControllerConfig.__dataclass_fields__
+        if name in rule_fields:
+            return getattr(self.rule, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        rule_fields = RuleControllerConfig.__dataclass_fields__
+        if name in rule_fields and "rule" in self.__dict__:
+            setattr(self.rule, name, value)
+            return
+        super().__setattr__(name, value)
+
+
 class ExperimentConfig(BaseModel):
     """从 YAML 解析得到的顶层实验配置."""
 
-    optimizer: NSGA2Config
-    controller: RuleControllerConfig
-    controller_mode: ControllerModeConfig = Field(default_factory=ControllerModeConfig)
+    solver: NSGA2Config
+    controller: ControllerConfig = Field(default_factory=ControllerConfig)
     llm: LLMRuntimeConfig = Field(default_factory=LLMRuntimeConfig)
     problem: ProblemConfig
-    memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    ablation: AblationConfig = Field(default_factory=AblationConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     experiment: ExperimentMetaConfig = Field(default_factory=ExperimentMetaConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     log_path: str | None = None
+
+    @property
+    def optimizer(self) -> NSGA2Config:
+        """向后兼容：旧代码仍可读取 cfg.optimizer."""
+        return self.solver
+
+    @property
+    def controller_mode(self) -> "_ControllerModeProxy":
+        """向后兼容：旧代码仍可读取 cfg.controller_mode."""
+        return _ControllerModeProxy(self.controller)
+
+    @property
+    def memory(self) -> "_MemoryProxy":
+        """向后兼容：旧代码仍可读取 cfg.memory."""
+        return _MemoryProxy(self.controller)
+
+
+class _ControllerModeProxy:
+    def __init__(self, controller: ControllerConfig) -> None:
+        object.__setattr__(self, "_controller", controller)
+
+    def __getattr__(self, name: str) -> Any:
+        mapping = {"mode": "mode", "experience_lookback": "experience_lookback"}
+        if name not in mapping:
+            raise AttributeError(name)
+        return getattr(self._controller, mapping[name])
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        mapping = {"mode": "mode", "experience_lookback": "experience_lookback"}
+        if name not in mapping:
+            raise AttributeError(name)
+        setattr(self._controller, mapping[name], value)
+
+
+class _MemoryProxy:
+    def __init__(self, controller: ControllerConfig) -> None:
+        object.__setattr__(self, "_controller", controller)
+
+    def __getattr__(self, name: str) -> Any:
+        mapping = {
+            "enabled": "memory_enabled",
+            "memory_window": "memory_window",
+            "experience_log_path": "experience_log_path",
+            "reward_alpha": "reward_alpha",
+            "reward_beta": "reward_beta",
+        }
+        if name not in mapping:
+            raise AttributeError(name)
+        return getattr(self._controller, mapping[name])
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        mapping = {
+            "enabled": "memory_enabled",
+            "memory_window": "memory_window",
+            "experience_log_path": "experience_log_path",
+            "reward_alpha": "reward_alpha",
+            "reward_beta": "reward_beta",
+        }
+        if name not in mapping:
+            raise AttributeError(name)
+        setattr(self._controller, mapping[name], value)
 
 
 @dataclass(slots=True)
@@ -405,12 +518,35 @@ def load_config(path: str | Path) -> ExperimentConfig:
     """从 YAML 文件加载实验配置."""
     with Path(path).open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
+    if "solver" not in raw and "optimizer" in raw:
+        raw["solver"] = raw.pop("optimizer")
+
+    controller_raw = dict(raw.get("controller") or {})
+    legacy_mode = raw.pop("controller_mode", None)
+    if isinstance(legacy_mode, dict):
+        controller_raw.setdefault("mode", legacy_mode.get("mode", "rule"))
+        controller_raw.setdefault("experience_lookback", legacy_mode.get("experience_lookback", 5))
+    legacy_memory = raw.pop("memory", None)
+    if isinstance(legacy_memory, dict):
+        controller_raw.setdefault("memory_enabled", legacy_memory.get("enabled", True))
+        controller_raw.setdefault("memory_window", legacy_memory.get("memory_window", 100))
+        controller_raw.setdefault("experience_log_path", legacy_memory.get("experience_log_path"))
+        controller_raw.setdefault("reward_alpha", legacy_memory.get("reward_alpha", 1.0))
+        controller_raw.setdefault("reward_beta", legacy_memory.get("reward_beta", 0.1))
+    rule_fields = set(RuleControllerConfig.__dataclass_fields__.keys())
+    nested_rule = dict(controller_raw.get("rule") or {})
+    for key in list(controller_raw.keys()):
+        if key in rule_fields:
+            nested_rule.setdefault(key, controller_raw.pop(key))
+    controller_raw["rule"] = nested_rule
+    raw["controller"] = controller_raw
+
     return ExperimentConfig.model_validate(raw)
 
 
 def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
     """从结构化配置创建 NSGA-II 求解器."""
-    if problem.problem_type == "dwta":
+    if problem.is_dwta:
         dwta_live_cache: DWTALiveCache | None = None
         if problem.precomputed is not None:
             dwta_data = DWTABenchmarkData(
@@ -499,9 +635,10 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
 
 def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChainController:
     """按模式构建规则或 LLM 控制器，而不改变 运行器 API."""
-    mode = config.controller_mode.mode
+    mode = config.controller.mode
+    rule = config.controller.rule
     if mode == "rule":
-        return RuleBasedController(config.controller)
+        return RuleBasedController(rule)
 
     llm_client = LLMClient(
         LLMClientConfig(
@@ -509,7 +646,7 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
             provider=config.llm.provider,
             model=config.llm.model,
             timeout_s=config.llm.timeout_s,
-            min_read_timeout_s=config.llm.min_read_timeout_s,
+            min_read_timeout_s=getattr(config.llm, "min_read_timeout_s", config.llm.timeout_s),
             max_retries=config.llm.max_retries,
             api_key_env=config.llm.api_key_env,
             base_url_env=config.llm.base_url_env,
@@ -522,25 +659,25 @@ def build_controller(config: ExperimentConfig) -> RuleBasedController | LLMChain
     strategist = Strategist(llm_client)
     actuator = Actuator(
         llm_client,
-        min_mutation_prob=config.controller.min_mutation_prob,
-        max_mutation_prob=config.controller.max_mutation_prob,
-        min_crossover_prob=config.controller.min_crossover_prob,
-        max_crossover_prob=config.controller.max_crossover_prob,
-        min_eta_c=config.controller.min_eta_c,
-        max_eta_c=config.controller.max_eta_c,
-        min_eta_m=config.controller.min_eta_m,
-        max_eta_m=config.controller.max_eta_m,
-        min_repair_prob=config.controller.min_repair_prob,
-        max_repair_prob=config.controller.max_repair_prob,
-        min_local_search_prob=config.controller.min_local_search_prob,
-        max_local_search_prob=config.controller.max_local_search_prob,
+        min_mutation_prob=rule.min_mutation_prob,
+        max_mutation_prob=rule.max_mutation_prob,
+        min_crossover_prob=rule.min_crossover_prob,
+        max_crossover_prob=rule.max_crossover_prob,
+        min_eta_c=rule.min_eta_c,
+        max_eta_c=rule.max_eta_c,
+        min_eta_m=rule.min_eta_m,
+        max_eta_m=rule.max_eta_m,
+        min_repair_prob=rule.min_repair_prob,
+        max_repair_prob=rule.max_repair_prob,
+        min_local_search_prob=rule.min_local_search_prob,
+        max_local_search_prob=rule.max_local_search_prob,
     )
     return LLMChainController(
-        control_interval=config.controller.control_interval,
-        experience_lookback=config.controller_mode.experience_lookback,
-        event_triggered_control=config.controller.event_triggered_control,
-        event_control_cooldown=config.controller.event_control_cooldown,
-        forced_control_on_major_event=config.controller.forced_control_on_major_event,
+        control_interval=rule.control_interval,
+        experience_lookback=config.controller.experience_lookback,
+        event_triggered_control=rule.event_triggered_control,
+        event_control_cooldown=rule.event_control_cooldown,
+        forced_control_on_major_event=rule.forced_control_on_major_event,
         analyst=analyst,
         strategist=strategist,
         actuator=actuator,
@@ -554,9 +691,9 @@ def resolve_artifacts(config: ExperimentConfig) -> RunArtifacts:
 
     events_path = Path(config.log_path) if config.log_path else output_dir / config.logging.events_file
     experiences_path: Path | None = None
-    if config.memory.enabled:
-        if config.memory.experience_log_path:
-            experiences_path = Path(config.memory.experience_log_path)
+    if config.controller.memory_enabled:
+        if config.controller.experience_log_path:
+            experiences_path = Path(config.controller.experience_log_path)
         else:
             experiences_path = output_dir / config.logging.experiences_file
 
@@ -574,14 +711,14 @@ def resolve_artifacts(config: ExperimentConfig) -> RunArtifacts:
 def build_runtime(config: ExperimentConfig) -> RuntimeBundle:
     """组装 求解器、控制器、运行器 与输出产物."""
     artifacts = resolve_artifacts(config)
-    solver = build_solver(config.problem, config.optimizer)
+    solver = build_solver(config.problem, config.solver)
     sensor = ParetoStateSensor()
     controller = build_controller(config)
     logger = JsonlLogger(artifacts.events_path)
 
-    experience_pool = ExperiencePool(config.memory.memory_window) if config.memory.enabled else None
+    experience_pool = ExperiencePool(config.controller.memory_window) if config.controller.memory_enabled else None
     experience_logger = ExperienceJsonlLogger(artifacts.experiences_path) if artifacts.experiences_path else None
-    reward_config = RewardConfig(alpha=config.memory.reward_alpha, beta=config.memory.reward_beta)
+    reward_config = RewardConfig(alpha=config.controller.reward_alpha, beta=config.controller.reward_beta)
 
     runner = ClosedLoopRunner(
         solver=solver,
@@ -784,7 +921,7 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
     )
 
     start_ts = time.perf_counter()
-    states = runtime.runner.run(generations=config.optimizer.generations)
+    states = runtime.runner.run(generations=config.solver.generations)
     runtime_s = time.perf_counter() - start_ts
     split_event_stream(
         events_path=runtime.artifacts.events_path,
@@ -825,14 +962,14 @@ def run_experiment(config_path: str = "experiments/configs/default.yaml") -> dic
 
     summary = {
         "experiment": config.experiment.model_dump(mode="json"),
-        "controller_mode": config.controller_mode.mode,
+        "controller_mode": config.controller.mode,
         "method": config.experiment.method or config.experiment.name,
         "benchmark": config.experiment.benchmark or "unknown",
-        "seed": config.experiment.seed if config.experiment.seed is not None else config.optimizer.seed,
+        "seed": config.experiment.seed if config.experiment.seed is not None else config.solver.seed,
         "source_config_path": str(config_path),
         "run_id": run_id,
         "config_fingerprint": config_fingerprint,
-        "generations": config.optimizer.generations,
+        "generations": config.solver.generations,
         "final_generation": final.generation,
         "final_hv": final.hv,
         "best_hv": best_state.hv,

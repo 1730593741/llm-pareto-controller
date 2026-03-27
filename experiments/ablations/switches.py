@@ -22,18 +22,27 @@ def apply_ablation_switches(
         config.setdefault("memory", {})
         config["memory"]["enabled"] = False
         config["memory"]["experience_log_path"] = None
+        config.setdefault("controller", {})
+        config["controller"]["memory_enabled"] = False
+        config["controller"]["experience_log_path"] = None
 
     if switches.get("no_state_metric_x", False):
         config.setdefault("controller", {})
         config["controller"]["improvement_threshold"] = 1.0
+        config.setdefault("controller", {}).setdefault("rule", {})
+        config["controller"]["rule"]["improvement_threshold"] = 1.0
 
     if switches.get("fixed_control_interval", False):
         config.setdefault("controller", {})
         config["controller"]["control_interval"] = 99999
+        config.setdefault("controller", {}).setdefault("rule", {})
+        config["controller"]["rule"]["control_interval"] = 99999
 
     if switches.get("no_llm_chain", False):
         config.setdefault("controller_mode", {})
         config["controller_mode"]["mode"] = "rule"
+        config.setdefault("controller", {})
+        config["controller"]["mode"] = "rule"
 
     with Path(output_path).open("w", encoding="utf-8") as f:
         yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True)
