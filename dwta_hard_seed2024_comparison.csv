@@ -1,5 +1,0 @@
-Method,Final HV,Best HV,HV-AUC,Feasible Ratio,Actions,Runtime (s),LLM Overhead (s),Events Resisted
-baseline_nsga2,728.72,728.72,503.82,1.0,19,106.71,0.0,6
-rule_control,728.72,728.72,503.82,1.0,19,111.23,0.0,6
-mock_llm,806.73,806.73,570.99,1.0,19,101.68,0.06,6
-real_llm,410.09,506.92,394.75,1.0,19,2621.3,2516.38,6
