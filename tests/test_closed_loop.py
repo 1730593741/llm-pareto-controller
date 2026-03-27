@@ -75,23 +75,34 @@ class RequestedAppliedDivergenceController:
 
 
 def _build_solver() -> NSGA2Solver:
-    return NSGA2Solver(
-        n_tasks=4,
-        n_resources=2,
-        cost_matrix=[
-            [1.0, 2.0],
-            [2.0, 1.1],
-            [1.5, 1.8],
-            [2.2, 1.0],
+    scenario = build_dynamic_scenario(
+        munition_types=[MunitionType(id="m1", max_range=12.0, flight_speed=3.0, lethality=2.0)],
+        weapons=[
+            Weapon(id="w1", x=0.0, y=0.0, munition_type_id="m1", ammo_capacity=3),
+            Weapon(id="w2", x=2.0, y=0.0, munition_type_id="m1", ammo_capacity=2),
         ],
-        task_loads=[1.0, 1.0, 1.0, 1.0],
-        capacities=[2.0, 2.0],
+        targets=[
+            Target(id="t1", x=3.0, y=0.0, required_damage=3.0, time_window=(0.0, 4.0)),
+            Target(id="t2", x=6.0, y=0.0, required_damage=2.0, time_window=(0.0, 4.0)),
+        ],
+    )
+    cache = DWTALiveCache(scenario)
+    cache.refresh()
+    return NSGA2Solver(
+        n_tasks=0,
+        n_resources=1,
+        cost_matrix=[],
+        task_loads=[],
+        capacities=[],
+        dwta_data=scenario.base_data,
+        dwta_live_cache=cache,
         config=NSGA2Config(
             population_size=12,
             generations=6,
             crossover_prob=0.9,
             mutation_prob=0.1,
             seed=11,
+            repair_prob=1.0,
         ),
     )
 
@@ -243,6 +254,7 @@ def test_rule_controller_maps_to_diversity_state() -> None:
     population = solver.initialize_population()
     sensor = ParetoStateSensor()
     state = sensor.sense(generation=0, population=population, previous_state=None, reference_point=None)
+    state.diversity_score = 0.0
 
     action = controller.decide(
         state=state,

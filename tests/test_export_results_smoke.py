@@ -26,8 +26,8 @@ def _write_summary(path: Path, method: str, benchmark: str, seed: int, hv: float
 
 
 def test_export_results_smoke(tmp_path: Path) -> None:
-    _write_summary(tmp_path / "matched" / "small_complex" / "seed_1" / "rule_control" / "summary.json", "rule_control", "small_complex", 1, 1.2)
-    _write_summary(tmp_path / "matched" / "small_complex" / "seed_2" / "mock_llm" / "summary.json", "mock_llm", "small_complex", 2, 1.3)
+    _write_summary(tmp_path / "matched" / "dwta_small" / "seed_1" / "rule_control" / "summary.json", "rule_control", "dwta_small", 1, 1.2)
+    _write_summary(tmp_path / "matched" / "dwta_small" / "seed_2" / "mock_llm" / "summary.json", "mock_llm", "dwta_small", 2, 1.3)
 
     rows = collect_rows(tmp_path)
     assert len(rows) == 2

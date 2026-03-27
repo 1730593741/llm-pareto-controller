@@ -12,10 +12,10 @@ from main import run_experiment
 
 _BASE_METHOD_CONFIG = "experiments/configs/rule_control.yaml"
 _BENCHMARK_CONFIGS: dict[str, str] = {
-    "small_complex_smoke": "experiments/configs/small_complex_smoke.yaml",
-    "small_complex": "experiments/configs/small_complex.yaml",
-    "medium_complex": "experiments/configs/medium_complex.yaml",
-    "hard_complex": "experiments/configs/hard_complex.yaml",
+    "dwta_small_smoke": "experiments/configs/dwta_small_smoke.yaml",
+    "dwta_small": "experiments/configs/dwta_small.yaml",
+    "dwta_medium": "experiments/configs/dwta_medium.yaml",
+    "dwta_hard": "experiments/configs/dwta_hard_realworld.yaml",
 }
 
 
@@ -83,9 +83,9 @@ def run_ablation_matrix(
             for ablation_name, patch in _ablation_specs(tau_values, memory_windows):
                 payload = _deep_merge(base_payload, patch)
                 payload["problem"] = copy.deepcopy(benchmark_problem)
-                payload.setdefault("optimizer", {})["seed"] = seed
-                payload["optimizer"]["generations"] = generations
-                payload["optimizer"]["population_size"] = population_size
+                payload.setdefault("solver", {})["seed"] = seed
+                payload["solver"]["generations"] = generations
+                payload["solver"]["population_size"] = population_size
                 payload.setdefault("experiment", {})["seed"] = seed
                 payload["experiment"]["name"] = f"ablation_{ablation_name}_{benchmark}_seed{seed}"
                 payload["experiment"]["method"] = ablation_name

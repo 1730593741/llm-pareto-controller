@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Iterator
 
-from problems.task_assignment.encoding import Assignment
+Assignment = list[int]
 
 
 @dataclass(slots=True)
