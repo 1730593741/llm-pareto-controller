@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from main import ProblemConfig
-from problems.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
-from problems.dwta.scenario_builder import build_dynamic_scenario, build_scenario_matrices
+from src.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
+from src.dwta.scenario_builder import build_dynamic_scenario, build_scenario_matrices
 
 
 def test_scenario_builder_compatibility_and_lethality_correctness() -> None:

@@ -7,9 +7,9 @@ from controller.control_semantics import ControlState
 from controller.operator_space import OperatorCapabilities, OperatorParams
 from memory.experience_pool import ExperiencePool
 from optimizers.nsga2.solver import NSGA2Config, NSGA2Solver
-from problems.dwta.live_cache import DWTALiveCache
-from problems.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
-from problems.dwta.scenario_builder import build_dynamic_scenario
+from src.dwta.live_cache import DWTALiveCache
+from src.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
+from src.dwta.scenario_builder import build_dynamic_scenario
 from sensing.pareto_state import ParetoStateSensor
 
 

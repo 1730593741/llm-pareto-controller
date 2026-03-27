@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from main import ProblemConfig, build_solver
 from optimizers.nsga2.solver import NSGA2Config
-from problems.dwta.constraints import constraint_breakdown
-from problems.dwta.objectives import compute_objectives
-from problems.dwta.precompute import build_precomputed_matrices
-from problems.dwta.repair import repair_allocation
-from problems.dwta.model import MunitionType, Target, Weapon
+from src.dwta.constraints import constraint_breakdown
+from src.dwta.objectives import compute_objectives
+from src.dwta.precompute import build_precomputed_matrices
+from src.dwta.repair import repair_allocation
+from src.dwta.model import MunitionType, Target, Weapon
 
 
 def test_dwta_precompute_builds_compatibility_and_lethality() -> None:

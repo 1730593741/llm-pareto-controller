@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from problems.dwta.live_cache import DWTALiveCache
-from problems.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
-from problems.dwta.scenario_builder import build_dynamic_scenario
+from src.dwta.live_cache import DWTALiveCache
+from src.dwta.model import DWTAWaveEvent, MunitionType, Target, Weapon
+from src.dwta.scenario_builder import build_dynamic_scenario
 
 
 def test_live_cache_refresh_after_environment_change() -> None:
