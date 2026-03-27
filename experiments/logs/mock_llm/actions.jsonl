@@ -1,4 +1,0 @@
-{"event": "action", "generation": 3, "mutation_prob": 0.16, "crossover_prob": 0.86, "reason": "mock::increase_exploration"}
-{"event": "action", "generation": 6, "mutation_prob": 0.22, "crossover_prob": 0.82, "reason": "mock::increase_exploration"}
-{"event": "action", "generation": 9, "mutation_prob": 0.28, "crossover_prob": 0.7799999999999999, "reason": "mock::increase_exploration"}
-{"event": "action", "generation": 12, "mutation_prob": 0.34, "crossover_prob": 0.7399999999999999, "reason": "mock::increase_exploration"}
