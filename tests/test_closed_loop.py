@@ -2,7 +2,15 @@
 
 import pytest
 
-from controller.closed_loop import ClosedLoopRunner, ControlAction, RewardConfig, RuleBasedController, RuleControllerConfig
+from controller.closed_loop import (
+    ClosedLoopRunner,
+    ControlAction,
+    NSGA2Adaptation,
+    Observation,
+    RewardConfig,
+    RuleBasedController,
+    RuleControllerConfig,
+)
 from controller.control_semantics import ControlState
 from controller.operator_space import OperatorCapabilities, OperatorParams
 from memory.experience_pool import ExperiencePool
@@ -179,6 +187,26 @@ def test_rule_controller_decide_backwards_compatible_signature() -> None:
     assert 0.0 <= action.crossover_prob <= 1.0
 
 
+def test_rule_controller_decide_with_shared_observation() -> None:
+    solver = _build_solver()
+    controller = RuleBasedController(RuleControllerConfig(control_interval=2))
+    population = solver.initialize_population()
+    sensor = ParetoStateSensor()
+    state = sensor.sense(generation=0, population=population, previous_state=None, reference_point=None)
+    observation = Observation(
+        state=state,
+        recent_experiences=[],
+        current_params=solver.get_operator_params(),
+        capabilities=solver.get_operator_capabilities(),
+    )
+
+    action = controller.decide(observation=observation)
+
+    assert action.generation == 0
+    assert 0.0 <= action.mutation_prob <= 1.0
+    assert 0.0 <= action.crossover_prob <= 1.0
+
+
 def test_closed_loop_skips_terminal_generation_action() -> None:
     solver = _build_solver()
     controller = RuleBasedController(RuleControllerConfig(control_interval=3))
@@ -237,6 +265,26 @@ def test_closed_loop_applies_applied_params_not_requested_params() -> None:
     runner.run(generations=2)
 
     assert solver.config.repair_prob == 0.2
+
+
+def test_nsga2_adaptation_applies_explicit_action_space() -> None:
+    solver = _build_solver()
+    adaptation = NSGA2Adaptation(solver)
+    before = solver.get_operator_params()
+    action = ControlAction(
+        generation=1,
+        mutation_prob=0.22,
+        crossover_prob=0.88,
+        reason="test",
+        applied_params={"mutation_prob": 0.22, "crossover_prob": 0.88},
+    )
+
+    applied = adaptation.apply_action(action)
+
+    assert applied.mutation_prob == 0.22
+    assert applied.crossover_prob == 0.88
+    assert solver.get_operator_params().mutation_prob == 0.22
+    assert before.mutation_prob != solver.get_operator_params().mutation_prob
 
 
 def test_closed_loop_applies_dwta_runtime_events_and_logs() -> None:

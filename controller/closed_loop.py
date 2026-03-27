@@ -132,20 +132,66 @@ class ControlAction:
         return asdict(self)
 
 
+@dataclass(slots=True)
+class Observation:
+    """统一控制观测载体，供 rule/llm 控制器共享."""
+
+    state: ParetoState
+    recent_experiences: list[ExperienceRecord]
+    current_params: OperatorParams
+    capabilities: OperatorCapabilities
+    trigger_type: str = "periodic"
+    trigger_event_id: str | None = None
+
+
+class NSGA2Adaptation:
+    """将控制层与 NSGA-II solver 参数写入解耦的窄适配层."""
+
+    def __init__(self, solver: NSGA2Solver) -> None:
+        self.solver = solver
+
+    def build_observation(
+        self,
+        *,
+        state: ParetoState,
+        recent_experiences: list[ExperienceRecord],
+        trigger_type: str,
+        trigger_event_id: str | None,
+    ) -> Observation:
+        """从求解器快照构造统一 Observation."""
+        return Observation(
+            state=state,
+            recent_experiences=recent_experiences,
+            current_params=self.solver.get_operator_params(),
+            capabilities=self.solver.get_operator_capabilities(),
+            trigger_type=trigger_type,
+            trigger_event_id=trigger_event_id,
+        )
+
+    def apply_action(self, action: ControlAction) -> OperatorParams:
+        """只通过显式 action->operator 参数映射更新求解器."""
+        applied_params = action.applied_params or {}
+        next_params = OperatorParams(
+            mutation_prob=action.mutation_prob,
+            crossover_prob=action.crossover_prob,
+            eta_c=float(applied_params["eta_c"]) if "eta_c" in applied_params else None,
+            eta_m=float(applied_params["eta_m"]) if "eta_m" in applied_params else None,
+            repair_prob=float(applied_params["repair_prob"]) if "repair_prob" in applied_params else None,
+            local_search_prob=(
+                float(applied_params["local_search_prob"]) if "local_search_prob" in applied_params else None
+            ),
+        )
+        self.solver.set_operator_params(next_params)
+        return next_params
+
+
 class ControlPolicy(Protocol):
     """Shared controller interface for rule-based and LLM-based policies."""
 
     control_interval: int
 
-    def decide(
-        self,
-        *,
-        state: ParetoState,
-        recent_experiences: list[ExperienceRecord],
-        current_params: OperatorParams,
-        capabilities: OperatorCapabilities,
-    ) -> ControlAction:
-        """Return the next control action based on state and recent context."""
+    def decide(self, *, observation: Observation) -> ControlAction:
+        """Return the next control action based on a shared observation."""
 
 
 class RuleBasedController:
@@ -169,7 +215,8 @@ class RuleBasedController:
     def decide(
         self,
         *,
-        state: ParetoState,
+        observation: Observation | None = None,
+        state: ParetoState | None = None,
         recent_experiences: list[ExperienceRecord] | None = None,
         current_params: OperatorParams | None = None,
         capabilities: OperatorCapabilities | None = None,
@@ -182,6 +229,13 @@ class RuleBasedController:
         compatibility with earlier tests, while ``current_params`` is the
         preferred code path used by the runner.
         """
+        if observation is not None:
+            state = observation.state
+            recent_experiences = observation.recent_experiences
+            current_params = observation.current_params
+            capabilities = observation.capabilities
+        if state is None:
+            raise ValueError("state must be provided directly or through observation")
         del recent_experiences
         if current_params is not None:
             mutation = current_params.mutation_prob
@@ -290,19 +344,19 @@ class LLMChainController:
     def decide(
         self,
         *,
-        state: ParetoState,
-        recent_experiences: list[ExperienceRecord],
-        current_params: OperatorParams,
-        capabilities: OperatorCapabilities,
+        observation: Observation,
     ) -> ControlAction:
         """Run the full reasoning chain and return a structured action."""
-        diagnosis = self.analyst.analyze(state=state, recent_experiences=recent_experiences)
+        diagnosis = self.analyst.analyze(
+            state=observation.state,
+            recent_experiences=observation.recent_experiences,
+        )
         strategy = self.strategist.plan(diagnosis)
         return self.actuator.act(
-            generation=state.generation,
+            generation=observation.state.generation,
             strategy=strategy,
-            current_params=current_params,
-            capabilities=capabilities,
+            current_params=observation.current_params,
+            capabilities=observation.capabilities,
         )
 
 
@@ -340,6 +394,7 @@ class ClosedLoopRunner:
         self.solver = solver
         self.sensor = sensor
         self.controller = controller
+        self.adaptation = NSGA2Adaptation(solver)
         self.logger = logger
         self.experience_pool = experience_pool
         self.experience_logger = experience_logger
@@ -421,32 +476,19 @@ class ClosedLoopRunner:
 
             if trigger_type is not None:
                 recent_experiences = self._recent_experiences()
-                action_started = time.perf_counter()
-                action = self.controller.decide(
+                observation = self.adaptation.build_observation(
                     state=state,
                     recent_experiences=recent_experiences,
-                    current_params=self.solver.get_operator_params(),
-                    capabilities=self.solver.get_operator_capabilities(),
+                    trigger_type=trigger_type,
+                    trigger_event_id=latest_event_id if trigger_type == "event" else None,
                 )
+                action_started = time.perf_counter()
+                action = self._decide_action(observation=observation)
                 action.decision_runtime_s = time.perf_counter() - action_started
                 action.trigger_type = trigger_type
                 action.trigger_event_id = latest_event_id if trigger_type == "event" else None
                 action.cooldown_skipped = False
-                applied_params = action.applied_params or {}
-                self.solver.set_operator_params(
-                    OperatorParams(
-                        mutation_prob=action.mutation_prob,
-                        crossover_prob=action.crossover_prob,
-                        eta_c=float(applied_params["eta_c"]) if "eta_c" in applied_params else None,
-                        eta_m=float(applied_params["eta_m"]) if "eta_m" in applied_params else None,
-                        repair_prob=float(applied_params["repair_prob"]) if "repair_prob" in applied_params else None,
-                        local_search_prob=(
-                            float(applied_params["local_search_prob"])
-                            if "local_search_prob" in applied_params
-                            else None
-                        ),
-                    )
-                )
+                self.adaptation.apply_action(action)
                 self._log_action(action)
                 stage_id = self._resolve_stage_id(generation=generation, wave_id=current_wave_id)
                 pending_experience = _PendingExperience(
@@ -461,6 +503,18 @@ class ClosedLoopRunner:
             previous_state = state
 
         return states
+
+    def _decide_action(self, *, observation: Observation) -> ControlAction:
+        """优先使用统一 observation 接口，兼容旧 controller 签名."""
+        try:
+            return self.controller.decide(observation=observation)
+        except TypeError:
+            return self.controller.decide(
+                state=observation.state,
+                recent_experiences=observation.recent_experiences,
+                current_params=observation.current_params,
+                capabilities=observation.capabilities,
+            )
 
     def _recent_experiences(self) -> list[ExperienceRecord]:
         """Return the recent experience window expected by the controller."""
