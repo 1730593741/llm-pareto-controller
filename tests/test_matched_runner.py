@@ -12,7 +12,7 @@ def test_run_matched_experiments_smoke(tmp_path: Path) -> None:
         output_root=tmp_path / "matched",
         seed=33,
         generations=3,
-        benchmark="small_complex_smoke",
+        benchmark="dwta_small_smoke",
         population_size=12,
         methods=("baseline_nsga2", "rule_control", "mock_llm"),
     )
@@ -21,7 +21,7 @@ def test_run_matched_experiments_smoke(tmp_path: Path) -> None:
     for mode, summary in results.items():
         assert summary["seed"] == 33
         assert summary["generations"] == 3
-        assert summary["benchmark"] == "small_complex_smoke"
+        assert summary["benchmark"] == "dwta_small_smoke"
         assert summary["controller_mode"] in {"rule", "mock_llm"}
         assert Path(summary["summary_path"]).exists()
         assert str(tmp_path / "matched" / mode) in summary["summary_path"]

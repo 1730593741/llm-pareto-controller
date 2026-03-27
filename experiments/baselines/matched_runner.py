@@ -18,10 +18,10 @@ _MATCHED_CONFIGS: dict[str, str] = {
 }
 
 _BENCHMARK_CONFIGS: dict[str, str] = {
-    "small_complex_smoke": "experiments/configs/small_complex_smoke.yaml",
-    "small_complex": "experiments/configs/small_complex.yaml",
-    "medium_complex": "experiments/configs/medium_complex.yaml",
-    "hard_complex": "experiments/configs/hard_complex.yaml",
+    "dwta_small_smoke": "experiments/configs/dwta_small_smoke.yaml",
+    "dwta_small": "experiments/configs/dwta_small.yaml",
+    "dwta_medium": "experiments/configs/dwta_medium.yaml",
+    "dwta_hard": "experiments/configs/dwta_hard_realworld.yaml",
 }
 
 
@@ -57,9 +57,9 @@ def _build_matched_payload(
     benchmark_payload = _load_yaml(_BENCHMARK_CONFIGS[benchmark])
 
     payload["problem"] = copy.deepcopy(benchmark_payload["problem"])
-    payload.setdefault("optimizer", {})["seed"] = seed
-    payload["optimizer"]["generations"] = generations
-    payload["optimizer"]["population_size"] = population_size
+    payload.setdefault("solver", {})["seed"] = seed
+    payload["solver"]["generations"] = generations
+    payload["solver"]["population_size"] = population_size
 
     payload.setdefault("experiment", {})["seed"] = seed
     payload["experiment"]["name"] = f"matched_{method}_{benchmark}_seed{seed}"
@@ -76,7 +76,7 @@ def run_matched_experiments(
     seed: int,
     generations: int,
     population_size: int = 24,
-    benchmark: str = "small_complex",
+    benchmark: str = "dwta_small",
     methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """运行 matched 方法 comparisons 在 一个 单个 种子 + 基准问题 setting."""
@@ -115,7 +115,7 @@ def run_matched_seed_sweep(
     seeds: list[int] | tuple[int, ...],
     generations: int,
     population_size: int = 24,
-    benchmark: str = "small_complex",
+    benchmark: str = "dwta_small",
     methods: list[str] | tuple[str, ...] | None = None,
 ) -> dict[int, dict[str, dict[str, Any]]]:
     """运行 matched comparisons 用于 multiple seeds 在 一个 基准问题."""

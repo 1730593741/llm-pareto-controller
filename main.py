@@ -212,9 +212,9 @@ class ProblemConfig(BaseModel):
     waves: list[DWTAWaveEventConfig] = Field(default_factory=list)
 
     @property
-    def problem_type(self) -> Literal["task_assignment", "dwta"]:
-        """向后兼容字段：由配置内容推断问题类型。"""
-        return "dwta" if self.is_dwta else "task_assignment"
+    def problem_type(self) -> Literal["dwta"]:
+        """当前仓库仅支持 DWTA 问题类型。"""
+        return "dwta"
 
     @property
     def is_dwta(self) -> bool:
@@ -274,51 +274,9 @@ class ProblemConfig(BaseModel):
                     raise ValueError("dwta.max_targets must be >= number of configured targets")
             return self
 
-        if self.task_time_windows is not None:
-            if len(self.task_time_windows) != self.n_tasks:
-                raise ValueError("task_time_windows length must equal n_tasks")
-            for idx, window in enumerate(self.task_time_windows):
-                if len(window) != 2:
-                    raise ValueError(f"task_time_windows[{idx}] must contain [start, end]")
-                if float(window[0]) > float(window[1]):
-                    raise ValueError(f"task_time_windows[{idx}] start must be <= end")
-
-        if self.resource_time_windows is not None:
-            if len(self.resource_time_windows) != self.n_resources:
-                raise ValueError("resource_time_windows length must equal n_resources")
-            for idx, window in enumerate(self.resource_time_windows):
-                if len(window) != 2:
-                    raise ValueError(f"resource_time_windows[{idx}] must contain [start, end]")
-                if float(window[0]) > float(window[1]):
-                    raise ValueError(f"resource_time_windows[{idx}] start must be <= end")
-
-        if (self.task_time_windows is None) ^ (self.resource_time_windows is None):
-            raise ValueError("task_time_windows and resource_time_windows must be configured together")
-
-        if self.compatibility_matrix is not None:
-            if len(self.compatibility_matrix) != self.n_tasks:
-                raise ValueError("compatibility_matrix row count must equal n_tasks")
-            for row in self.compatibility_matrix:
-                if len(row) != self.n_resources:
-                    raise ValueError("compatibility_matrix column count must equal n_resources")
-                if any(value not in (0, 1) for value in row):
-                    raise ValueError("compatibility_matrix values must be 0 or 1")
-
-        if self.resource_stage_levels is not None and len(self.resource_stage_levels) != self.n_resources:
-            raise ValueError("resource_stage_levels length must equal n_resources")
-
-        if self.stage_transitions is not None:
-            for edge in self.stage_transitions:
-                if len(edge) != 2:
-                    raise ValueError("stage_transitions entries must be [predecessor_task, successor_task]")
-                predecessor, successor = edge
-                if not 0 <= predecessor < self.n_tasks or not 0 <= successor < self.n_tasks:
-                    raise ValueError("stage_transitions task indices must be in [0, n_tasks)")
-
-        if (self.resource_stage_levels is None) ^ (self.stage_transitions is None):
-            raise ValueError("resource_stage_levels and stage_transitions must be configured together")
-
-        return self
+        raise ValueError(
+            "non-DWTA problem definitions were removed; configure dwta.precomputed or munition_types+weapons+targets"
+        )
 
 
 class MemoryConfig(BaseModel):
@@ -618,18 +576,8 @@ def build_solver(problem: ProblemConfig, optimizer: NSGA2Config) -> NSGA2Solver:
             dwta_live_cache=dwta_live_cache,
         )
 
-    return NSGA2Solver(
-        n_tasks=problem.n_tasks,
-        n_resources=problem.n_resources,
-        cost_matrix=problem.cost_matrix,
-        task_loads=problem.task_loads,
-        capacities=problem.capacities,
-        task_time_windows=problem.task_time_windows,
-        resource_time_windows=problem.resource_time_windows,
-        compatibility_matrix=problem.compatibility_matrix,
-        resource_stage_levels=problem.resource_stage_levels,
-        stage_transitions=problem.stage_transitions,
-        config=optimizer,
+    raise ValueError(
+        "non-DWTA solver mode was removed; provide DWTA matrices or DWTA scenario entities in config.problem"
     )
 
 
@@ -832,7 +780,7 @@ def _build_dynamic_summary(
             if isinstance(active_weapons, (int, float)):
                 cumulative_resource_consumption += max(0.0, baseline - float(active_weapons))
 
-    total_waves = len(config.problem.waves) if config.problem.problem_type == "dwta" else 0
+    total_waves = len(config.problem.waves)
     wave_completion_rate = (float(num_events) / float(total_waves)) if total_waves > 0 else 0.0
 
     post_event_recovery = _post_event_recovery_generations_mean(generation_events, runtime_events)

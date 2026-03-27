@@ -19,9 +19,6 @@ def apply_ablation_switches(
         config: dict[str, Any] = yaml.safe_load(f)
 
     if switches.get("no_memory", False):
-        config.setdefault("memory", {})
-        config["memory"]["enabled"] = False
-        config["memory"]["experience_log_path"] = None
         config.setdefault("controller", {})
         config["controller"]["memory_enabled"] = False
         config["controller"]["experience_log_path"] = None
@@ -39,8 +36,6 @@ def apply_ablation_switches(
         config["controller"]["rule"]["control_interval"] = 99999
 
     if switches.get("no_llm_chain", False):
-        config.setdefault("controller_mode", {})
-        config["controller_mode"]["mode"] = "rule"
         config.setdefault("controller", {})
         config["controller"]["mode"] = "rule"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 
 from src.dwta.encoding import to_genome, to_matrix
-from problems.task_assignment.encoding import Assignment
+Assignment = list[int]
 
 
 

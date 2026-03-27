@@ -10,14 +10,14 @@ from experiments.export_results import export_results
 
 
 def test_export_file_structure(tmp_path: Path) -> None:
-    run_dir = tmp_path / "matched" / "small_complex" / "seed_1" / "baseline_nsga2"
+    run_dir = tmp_path / "matched" / "dwta_small" / "seed_1" / "baseline_nsga2"
     run_dir.mkdir(parents=True, exist_ok=True)
     summary_path = run_dir / "summary.json"
     summary_path.write_text(
         json.dumps(
             {
                 "method": "baseline_nsga2",
-                "benchmark": "small_complex",
+                "benchmark": "dwta_small",
                 "seed": 1,
                 "final_hv": 1.0,
                 "final_igd_plus": 0.5,
@@ -38,7 +38,7 @@ def test_export_file_structure(tmp_path: Path) -> None:
         reader = csv.DictReader(f)
         first = next(reader)
     assert first["method"] == "baseline_nsga2"
-    assert first["benchmark"] == "small_complex"
+    assert first["benchmark"] == "dwta_small"
 
     paper_csv = Path(outputs["paper_table_method_csv"])
     assert "hv_mean" in paper_csv.read_text(encoding="utf-8")

@@ -10,45 +10,11 @@ from experiments.baselines.runner import run_baseline_nsga2, run_no_memory_basel
 
 
 def test_baseline_nsga2_runner_executes(tmp_path: Path) -> None:
+    payload = yaml.safe_load(Path("experiments/configs/baseline_nsga2.yaml").read_text(encoding="utf-8"))
+    payload.setdefault("logging", {})["output_dir"] = str(tmp_path / "baseline_logs")
+    payload.setdefault("solver", {})["generations"] = 2
     config_path = tmp_path / "baseline.yaml"
-    config_path.write_text(
-        """
-experiment:
-  name: baseline_test
-problem:
-  n_tasks: 4
-  n_resources: 2
-  cost_matrix:
-    - [1.0, 2.0]
-    - [2.0, 1.0]
-    - [1.5, 1.1]
-    - [1.2, 1.3]
-  task_loads: [1.0, 1.0, 1.0, 1.0]
-  capacities: [2.0, 2.0]
-optimizer:
-  population_size: 10
-  generations: 2
-  crossover_prob: 0.9
-  mutation_prob: 0.1
-  seed: 7
-controller:
-  control_interval: 99999
-  min_mutation_prob: 0.1
-  max_mutation_prob: 0.1
-  min_crossover_prob: 0.9
-  max_crossover_prob: 0.9
-  mutation_step: 0.0
-  crossover_step: 0.0
-  feasible_ratio_low: 0.0
-  diversity_low: 0.0
-  improvement_threshold: 1.0
-memory:
-  enabled: false
-logging:
-  output_dir: __OUT__
-""".replace("__OUT__", str(tmp_path / "baseline_logs")),
-        encoding="utf-8",
-    )
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
     summary = run_baseline_nsga2(str(config_path))
     assert summary["final_generation"] == 2

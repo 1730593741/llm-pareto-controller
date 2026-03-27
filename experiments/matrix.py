@@ -13,8 +13,8 @@ DEFAULT_MATCHED_METHODS: tuple[str, ...] = (
 )
 
 DEFAULT_MATCHED_BENCHMARKS: tuple[str, ...] = (
-    "small_complex",
-    "medium_complex",
+    "dwta_small",
+    "dwta_medium",
 )
 
 DEFAULT_MATCHED_SEEDS: tuple[int, ...] = (11, 23, 37)
@@ -46,14 +46,14 @@ class AblationMatrix:
 MATCHED_PRESETS: dict[str, MatchedMatrix] = {
     "toy": MatchedMatrix(
         methods=("baseline_nsga2", "rule_control", "mock_llm"),
-        benchmarks=("small_complex_smoke",),
+        benchmarks=("dwta_small_smoke",),
         seeds=(7,),
         generations=4,
         population_size=12,
     ),
     "pilot": MatchedMatrix(
         methods=DEFAULT_MATCHED_METHODS,
-        benchmarks=("small_complex",),
+        benchmarks=("dwta_small",),
         seeds=(11, 23),
         generations=10,
         population_size=20,
@@ -64,7 +64,7 @@ MATCHED_PRESETS: dict[str, MatchedMatrix] = {
 ABLATION_PRESETS: dict[str, AblationMatrix] = {
     "toy": AblationMatrix(
         seeds=(7,),
-        benchmarks=("small_complex_smoke",),
+        benchmarks=("dwta_small_smoke",),
         generations=4,
         population_size=12,
         tau_values=(1, 3),
@@ -72,7 +72,7 @@ ABLATION_PRESETS: dict[str, AblationMatrix] = {
     ),
     "pilot": AblationMatrix(
         seeds=(11,),
-        benchmarks=("small_complex",),
+        benchmarks=("dwta_small",),
         generations=10,
         population_size=20,
     ),
